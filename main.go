@@ -31,14 +31,28 @@ func readLinks(path string) ([]string, error) {
 		return nil, err
 	}
 
-	filtered := make([]string, 0, len(lines))
+	links := make([]string, 0, len(lines))
 	for _, line := range lines {
 		if len(line) > 0 {
-			filtered = append(filtered, strings.TrimSpace(line))
+			links = append(links, strings.TrimSpace(line))
 		}
 	}
 
-	return filtered, nil
+	return links, nil
+}
+
+func fetchPlaylistLinks(client *youtube.Client, link string) ([]string, error) {
+	playlist, err := client.GetPlaylist(link)
+	if err != nil {
+		return nil, err
+	}
+
+	links := make([]string, 0, len(playlist.Videos))
+	for _, video := range playlist.Videos {
+		links = append(links, fmt.Sprintf("https://www.youtube.com/watch?v=%s", video.ID))
+	}
+
+	return links, nil
 }
 
 func SaveSong(song *yt2mp3.Song, path string) error {
