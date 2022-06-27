@@ -16,7 +16,7 @@ const (
 	no
 )
 
-type Video struct {
+type Song struct {
 	Title    string
 	Artist   string
 	Video    *youtube.Video
@@ -24,9 +24,9 @@ type Video struct {
 	Reliable Reliable
 }
 
-func ParseTitle(title string, author string) *Video {
+func ParseTitle(title string, author string) *Song {
 
-	video := Video{
+	song := Song{
 		Title:  title,
 		Artist: author,
 	}
@@ -42,28 +42,28 @@ func ParseTitle(title string, author string) *Video {
 	titleParts := regex.Split(title, -1)
 
 	if len(titleParts) > 1 {
-		video.Artist = strings.TrimSpace(titleParts[0])
-		video.Title = strings.TrimSpace(titleParts[1])
-		video.Reliable = yes
+		song.Artist = strings.TrimSpace(titleParts[0])
+		song.Title = strings.TrimSpace(titleParts[1])
+		song.Reliable = yes
 
 		// Keep only first listed artist.
 		regex = regexp.MustCompile(`^[^(&|,)]*[&|,]`)
-		if regex.MatchString(video.Artist) {
-			video.Artist = regex.FindString(video.Artist)
-			video.Artist = strings.TrimSpace(video.Artist[:len(video.Artist)-1])
-			video.Reliable = maybe
+		if regex.MatchString(song.Artist) {
+			song.Artist = regex.FindString(song.Artist)
+			song.Artist = strings.TrimSpace(song.Artist[:len(song.Artist)-1])
+			song.Reliable = maybe
 		}
 
-		if strings.Contains(video.Title, "|") {
-			video.Reliable = maybe
+		if strings.Contains(song.Title, "|") {
+			song.Reliable = maybe
 		}
 
 	} else {
-		video.Title = strings.TrimSpace(titleParts[0])
-		video.Reliable = no
+		song.Title = strings.TrimSpace(titleParts[0])
+		song.Reliable = no
 	}
 
-	return &video
+	return &song
 }
 
 func FindFormat(formats youtube.FormatList) *youtube.Format {
@@ -76,9 +76,9 @@ func FindFormat(formats youtube.FormatList) *youtube.Format {
 	return nil
 }
 
-func ParseVideos(client *youtube.Client, links []string) ([]Video, error) {
+func ParseSongs(client *youtube.Client, links []string) ([]Song, error) {
 
-	videos := make([]Video, 0, len(links))
+	songs := make([]Song, 0, len(links))
 	for _, link := range links {
 		video, err := client.GetVideo(link)
 		if err != nil {
@@ -87,9 +87,9 @@ func ParseVideos(client *youtube.Client, links []string) ([]Video, error) {
 
 		parsed := ParseTitle(video.Title, video.Author)
 		parsed.Video = video
-		videos = append(videos, *parsed)
+		songs = append(songs, *parsed)
 	}
 
-	sort.Slice(videos, func(i, j int) bool { return videos[i].Reliable < videos[j].Reliable })
-	return videos, nil
+	sort.Slice(songs, func(i, j int) bool { return songs[i].Reliable < songs[j].Reliable })
+	return songs, nil
 }

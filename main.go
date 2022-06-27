@@ -41,10 +41,10 @@ func readLinks(path string) ([]string, error) {
 	return filtered, nil
 }
 
-func SaveMusic(video *yt2mp3.Video, path string) error {
-	fileName := fmt.Sprintf("%s%s - %s.mp3", path, video.Artist, video.Title)
+func SaveSong(song *yt2mp3.Song, path string) error {
+	fileName := fmt.Sprintf("%s%s - %s.mp3", path, song.Artist, song.Title)
 
-	err := ioutil.WriteFile(fileName, video.Content, fs.ModePerm)
+	err := ioutil.WriteFile(fileName, song.Content, fs.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -61,24 +61,24 @@ func main() {
 
 	client := youtube.Client{Debug: false}
 
-	videos, err := yt2mp3.ParseVideos(&client, links)
+	songs, err := yt2mp3.ParseSongs(&client, links)
 	if err != nil {
 		panic(err)
 	}
 
-	for _, video := range videos {
-		reader, _, err := client.GetStream(video.Video, yt2mp3.FindFormat(video.Video.Formats))
+	for _, song := range songs {
+		reader, _, err := client.GetStream(song.Video, yt2mp3.FindFormat(song.Video.Formats))
 		if err != nil {
 			panic(err)
 		}
 
-		video.Content, err = io.ReadAll(reader)
+		song.Content, err = io.ReadAll(reader)
 		if err != nil {
 			panic(err)
 		}
 
 		reader.Close()
-		err = SaveMusic(&video, "./output/")
+		err = SaveSong(&song, "./output/")
 		if err != nil {
 			panic(err)
 		}
