@@ -2,47 +2,47 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"io/fs"
-	"io/ioutil"
-
-	"github.com/kkdai/youtube/v2"
+	"yt2mp3/title"
 )
 
 func main() {
 
-	link := "https://www.youtube.com/watch?v=jH1RNk8954Q&list=PL6YgdMS9Bn4GPY9Sm7BJtOwiVYzN-UINM&index=21"
+	video := title.ParseTitle("Sting - What Could Have Been | Arcane League of Legends | Riot Games Music", "")
+	fmt.Printf("%s\n", video.Title)
 
-	client := youtube.Client{Debug: true}
+	/*
+		link := "https://www.youtube.com/watch?v=jH1RNk8954Q&list=PL6YgdMS9Bn4GPY9Sm7BJtOwiVYzN-UINM&index=21"
 
-	video, err := client.GetVideo(link)
-	if err != nil {
-		panic(err)
-	}
+		client := youtube.Client{Debug: true}
 
-	// Typically youtube only provides separate streams for video and audio.
-	// If you want audio and video combined, take a look a the downloader package.
-	format := video.Formats.WithAudioChannels().FindByQuality("tiny")
+		video, err := client.GetVideo(link)
+		if err != nil {
+			panic(err)
+		}
 
-	reader, _, err := client.GetStream(video, format)
-	if err != nil {
-		panic(err)
-	}
+		// Typically youtube only provides separate streams for video and audio.
+		// If you want audio and video combined, take a look a the downloader package.
+		format := video.Formats.WithAudioChannels().FindByQuality("tiny")
 
-	fmt.Printf("bit rate: %v\n", format.AudioQuality)
+		reader, _, err := client.GetStream(video, format)
+		if err != nil {
+			panic(err)
+		}
 
-	// do something with the reader
-	content, err := io.ReadAll(reader)
-	if err != nil {
-		panic(err)
-	}
+		fmt.Printf("bit rate: %v\n", format.AudioQuality)
 
-	reader.Close()
+		// do something with the reader
+		content, err := io.ReadAll(reader)
+		if err != nil {
+			panic(err)
+		}
 
-	fileName := fmt.Sprintf("./output/%s.mp3", video.Title)
-	err = ioutil.WriteFile(fileName, content, fs.ModePerm)
-	if err != nil {
-		panic(err)
-	}
+		reader.Close()
 
+		fileName := fmt.Sprintf("./output/%s.mp3", video.Title)
+		err = ioutil.WriteFile(fileName, content, fs.ModePerm)
+		if err != nil {
+			panic(err)
+		}
+	*/
 }
