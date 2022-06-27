@@ -14,7 +14,7 @@ type testVideo struct {
 	reliable    Reliable
 }
 
-func TestParseTitle(t *testing.T) {
+func TestParse(t *testing.T) {
 	testVideos := []testVideo{
 		{
 			"Ava Max - Kings & Queens [Official Music Video]",
@@ -82,7 +82,7 @@ func TestParseTitle(t *testing.T) {
 		{
 			"Sting - What Could Have Been | Arcane League of Legends | Riot Games Music",
 			"Riot Games Music",
-			"What Could Have Been",
+			"What Could Have Been | Arcane League of Legends | Riot Games Music",
 			"Sting",
 			maybe,
 		},
@@ -90,14 +90,14 @@ func TestParseTitle(t *testing.T) {
 			"TECHNO MIX 2021 | DJD3",
 			"DJD3",
 			"TECHNO MIX 2021 | DJD3",
-			"TECHNO MIX 2021 | DJD3",
+			"DJD3",
 			no,
 		},
 	}
 	//
 
 	for _, song := range testVideos {
-		video := ParseTitle(song.videoTitle, song.videoAuthor)
+		video := Parse(song.videoTitle, song.videoAuthor)
 		require.Equal(t, song.title, video.Title)
 		require.Equal(t, song.artist, video.Artist)
 		require.Equal(t, song.reliable, video.Reliable)

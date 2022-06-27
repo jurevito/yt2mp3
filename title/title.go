@@ -1,7 +1,6 @@
 package title
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 
@@ -19,11 +18,11 @@ const (
 type Video struct {
 	Title    string
 	Artist   string
-	Format   youtube.Format
+	Format   *youtube.Format
 	Reliable Reliable
 }
 
-func ParseTitle(title string, author string) *Video {
+func Parse(title string, author string) *Video {
 
 	video := Video{
 		Title:  title,
@@ -36,10 +35,8 @@ func ParseTitle(title string, author string) *Video {
 		title = regex.ReplaceAllLiteralString(title, "")
 	}
 
-	fmt.Printf("%s\n", title)
-
 	// Split artist and title by '-'.
-	regex = regexp.MustCompile(`[-|–]+`)
+	regex = regexp.MustCompile(`[-–]+`)
 	titleParts := regex.Split(title, -1)
 
 	if len(titleParts) > 1 {
@@ -52,6 +49,10 @@ func ParseTitle(title string, author string) *Video {
 		if regex.MatchString(video.Artist) {
 			video.Artist = regex.FindString(video.Artist)
 			video.Artist = strings.TrimSpace(video.Artist[:len(video.Artist)-1])
+			video.Reliable = maybe
+		}
+
+		if strings.Contains(video.Title, "|") {
 			video.Reliable = maybe
 		}
 
