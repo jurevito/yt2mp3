@@ -1,4 +1,4 @@
-package title
+package yt2mp3
 
 import (
 	"testing"
@@ -14,7 +14,7 @@ type testVideo struct {
 	reliable    Reliable
 }
 
-func TestParse(t *testing.T) {
+func TestParseTitle(t *testing.T) {
 	testVideos := []testVideo{
 		{
 			"Ava Max - Kings & Queens [Official Music Video]",
@@ -97,7 +97,7 @@ func TestParse(t *testing.T) {
 	//
 
 	for _, song := range testVideos {
-		video := Parse(song.videoTitle, song.videoAuthor)
+		video := ParseTitle(song.videoTitle, song.videoAuthor)
 		require.Equal(t, song.title, video.Title)
 		require.Equal(t, song.artist, video.Artist)
 		require.Equal(t, song.reliable, video.Reliable)

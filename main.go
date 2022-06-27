@@ -3,10 +3,12 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
+	"io/fs"
+	"io/ioutil"
 	"os"
-	"sort"
 	"strings"
-	"yt2mp3/title"
+	"yt2mp3/yt2mp3"
 
 	"github.com/kkdai/youtube/v2"
 )
@@ -39,6 +41,17 @@ func readLinks(path string) ([]string, error) {
 	return filtered, nil
 }
 
+func SaveMusic(video *yt2mp3.Video, path string) error {
+	fileName := fmt.Sprintf("%s%s - %s.mp3", path, video.Artist, video.Title)
+
+	err := ioutil.WriteFile(fileName, video.Content, fs.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func main() {
 
 	links, err := readLinks("input.txt")
@@ -48,49 +61,26 @@ func main() {
 
 	client := youtube.Client{Debug: false}
 
-	videos := make([]title.Video, 0, len(links))
-	for _, link := range links {
-		video, err := client.GetVideo(link)
+	videos, err := yt2mp3.ParseVideos(&client, links)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, video := range videos {
+		reader, _, err := client.GetStream(video.Video, yt2mp3.FindFormat(video.Video.Formats))
 		if err != nil {
 			panic(err)
 		}
 
-		parsed := title.Parse(video.Title, video.Author)
-		parsed.Format = video.Formats.WithAudioChannels().FindByQuality("tiny")
-		videos = append(videos, *parsed)
-		// fmt.Printf("%s - %s\n%s\n\n", parsed.Artist, parsed.Title, video.Title)
-	}
-
-	sort.Slice(videos, func(i, j int) bool { return videos[i].Reliable < videos[j].Reliable })
-
-	for _, vid := range videos {
-		fmt.Printf("%s - %s\n", vid.Artist, vid.Title)
-	}
-
-	/*
-		// Typically youtube only provides separate streams for video and audio.
-		// If you want audio and video combined, take a look a the downloader package.
-		format := video.Formats.WithAudioChannels().FindByQuality("tiny")
-
-		reader, _, err := client.GetStream(video, format)
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Printf("bit rate: %v\n", format.AudioQuality)
-
-		// do something with the reader
-		content, err := io.ReadAll(reader)
+		video.Content, err = io.ReadAll(reader)
 		if err != nil {
 			panic(err)
 		}
 
 		reader.Close()
-
-		fileName := fmt.Sprintf("./output/%s.mp3", video.Title)
-		err = ioutil.WriteFile(fileName, content, fs.ModePerm)
+		err = SaveMusic(&video, "./output/")
 		if err != nil {
 			panic(err)
 		}
-	*/
+	}
 }

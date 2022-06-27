@@ -1,7 +1,8 @@
-package title
+package yt2mp3
 
 import (
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/kkdai/youtube/v2"
@@ -18,11 +19,12 @@ const (
 type Video struct {
 	Title    string
 	Artist   string
-	Format   *youtube.Format
+	Video    *youtube.Video
+	Content  []byte
 	Reliable Reliable
 }
 
-func Parse(title string, author string) *Video {
+func ParseTitle(title string, author string) *Video {
 
 	video := Video{
 		Title:  title,
@@ -62,4 +64,32 @@ func Parse(title string, author string) *Video {
 	}
 
 	return &video
+}
+
+func FindFormat(formats youtube.FormatList) *youtube.Format {
+	for _, format := range formats {
+		if format.MimeType == "audio/mp4; codecs=\"mp4a.40.2\"" {
+			return &format
+		}
+	}
+
+	return nil
+}
+
+func ParseVideos(client *youtube.Client, links []string) ([]Video, error) {
+
+	videos := make([]Video, 0, len(links))
+	for _, link := range links {
+		video, err := client.GetVideo(link)
+		if err != nil {
+			return nil, err
+		}
+
+		parsed := ParseTitle(video.Title, video.Author)
+		parsed.Video = video
+		videos = append(videos, *parsed)
+	}
+
+	sort.Slice(videos, func(i, j int) bool { return videos[i].Reliable < videos[j].Reliable })
+	return videos, nil
 }
