@@ -57,6 +57,7 @@ func ParseTitle(title string, author string) *Song {
 	// Split artist and title by '-'.
 	regex = regexp.MustCompile(`( [-]+ | [–]+ )`)
 	titleParts := regex.Split(title, -1)
+	artistParts := regex.Split(author, -1)
 
 	if len(titleParts) > 1 {
 		song.Artist = strings.TrimSpace(titleParts[0])
@@ -66,7 +67,7 @@ func ParseTitle(title string, author string) *Song {
 		// Keep only first listed artist.
 		regex = regexp.MustCompile(`^[^(&|,)]*[&|,]`)
 		if regex.MatchString(song.Artist) {
-			song.Artist = regex.FindString(song.Artist)
+			song.Artist = strings.TrimSpace(regex.FindString(song.Artist))
 			song.Artist = strings.TrimSpace(song.Artist[:len(song.Artist)-1])
 			song.Reliable = maybe
 		}
@@ -76,6 +77,7 @@ func ParseTitle(title string, author string) *Song {
 		}
 
 	} else {
+		song.Artist = strings.TrimSpace(artistParts[0])
 		song.Title = strings.TrimSpace(titleParts[0])
 		song.Reliable = no
 	}

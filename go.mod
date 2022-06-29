@@ -3,8 +3,10 @@ module yt2mp3
 go 1.18
 
 require (
+	github.com/bogem/id3v2/v2 v2.1.2
 	github.com/kkdai/youtube/v2 v2.7.15
 	github.com/stretchr/testify v1.7.5
+	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d
 )
 
 require (

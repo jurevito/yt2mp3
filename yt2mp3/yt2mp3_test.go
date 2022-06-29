@@ -117,6 +117,13 @@ func TestParseTitle(t *testing.T) {
 			`Wu-Tang Clan`,
 			yes,
 		},
+		{
+			`Calle`,
+			`El Mola - Topic`,
+			`Calle`,
+			`El Mola`,
+			no,
+		},
 	}
 
 	for _, song := range testVideos {
