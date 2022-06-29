@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/kkdai/youtube/v2"
+	"golang.org/x/exp/slices"
 )
 
 type Reliable int
@@ -24,6 +25,22 @@ type Song struct {
 	Reliable Reliable
 }
 
+func RemoveSpecialChars(s string) string {
+
+	sb := []byte(s)
+	special := []byte("<>,:\"/\\|?*")
+
+	n := 0
+	for i := 0; i < len(sb); i++ {
+		if !slices.Contains(special, s[i]) {
+			sb[n] = sb[i]
+			n++
+		}
+	}
+
+	return string(sb[:n])
+}
+
 func ParseTitle(title string, author string) *Song {
 
 	song := Song{
@@ -38,7 +55,7 @@ func ParseTitle(title string, author string) *Song {
 	}
 
 	// Split artist and title by '-'.
-	regex = regexp.MustCompile(`[-–]+`)
+	regex = regexp.MustCompile(`( [-]+ | [–]+ )`)
 	titleParts := regex.Split(title, -1)
 
 	if len(titleParts) > 1 {
@@ -62,6 +79,15 @@ func ParseTitle(title string, author string) *Song {
 		song.Title = strings.TrimSpace(titleParts[0])
 		song.Reliable = no
 	}
+
+	// Remove special characters for file saving.
+	song.Artist = RemoveSpecialChars(song.Artist)
+	song.Title = RemoveSpecialChars(song.Title)
+
+	// Remove redundant spaces.
+	regex = regexp.MustCompile(` {2,}`)
+	song.Artist = regex.ReplaceAllLiteralString(song.Artist, " ")
+	song.Title = regex.ReplaceAllLiteralString(song.Title, " ")
 
 	return &song
 }

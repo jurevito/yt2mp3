@@ -14,6 +14,16 @@ type testVideo struct {
 	reliable    Reliable
 }
 
+func TestRemoveSpacialChars(t *testing.T) {
+
+	output := []string{"What is that", ""}
+	input := []string{"What \"is\" that?", ":,?*\\/<>"}
+
+	for i := 0; i < len(output); i++ {
+		require.Equal(t, output[i], RemoveSpecialChars(input[i]))
+	}
+}
+
 func TestParseTitle(t *testing.T) {
 	testVideos := []testVideo{
 		{
@@ -82,19 +92,32 @@ func TestParseTitle(t *testing.T) {
 		{
 			"Sting - What Could Have Been | Arcane League of Legends | Riot Games Music",
 			"Riot Games Music",
-			"What Could Have Been | Arcane League of Legends | Riot Games Music",
+			"What Could Have Been Arcane League of Legends Riot Games Music",
 			"Sting",
 			maybe,
 		},
 		{
 			"TECHNO MIX 2021 | DJD3",
 			"DJD3",
-			"TECHNO MIX 2021 | DJD3",
+			"TECHNO MIX 2021 DJD3",
 			"DJD3",
 			no,
 		},
+		{
+			"OFFICIAL Somewhere over the Rainbow - Israel IZ Kamakawiwoʻole",
+			"Mountain Apple Company Inc",
+			"Israel IZ Kamakawiwoʻole",
+			"OFFICIAL Somewhere over the Rainbow",
+			yes,
+		},
+		{
+			`Wu-Tang Clan - C.R.E.A.M. (Official HD Video)`,
+			`Wu-Tang Clan`,
+			`C.R.E.A.M.`,
+			`Wu-Tang Clan`,
+			yes,
+		},
 	}
-	//
 
 	for _, song := range testVideos {
 		video := ParseTitle(song.videoTitle, song.videoAuthor)
