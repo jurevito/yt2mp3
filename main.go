@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -16,6 +17,26 @@ import (
 	id3 "github.com/bogem/id3v2/v2"
 	"github.com/kkdai/youtube/v2"
 )
+
+func getLinks(client *youtube.Client, source string, nLinks int) (links []string, err error) {
+	isPlaylist := strings.Contains(source, "https://www.youtube.com/playlist")
+
+	if isPlaylist {
+		links, err = fetchPlaylistLinks(client, source)
+	} else {
+		links, err = readLinks(source)
+	}
+
+	if err != nil {
+		return
+	}
+
+	if nLinks != 0 {
+		links = links[:nLinks]
+	}
+
+	return
+}
 
 func readLinks(path string) ([]string, error) {
 	file, err := os.Open(path)
@@ -103,9 +124,15 @@ func SaveSong(song *yt2mp3.Song, path string) error {
 
 func main() {
 
+	nLinks := flag.Int("n_links", 0, "Only download first given number of youtube links.")
+	flag.Parse()
+
+	source := flag.Arg(0)
+	output := flag.Arg(1)
+
 	client := youtube.Client{Debug: false}
 
-	links, err := fetchPlaylistLinks(&client, "https://www.youtube.com/playlist?list=PL6YgdMS9Bn4FLSnpv368M3s3_cysoeBkT")
+	links, err := getLinks(&client, source, *nLinks)
 	if err != nil {
 		log.Println(err)
 	}
@@ -129,7 +156,7 @@ func main() {
 		}
 
 		reader.Close()
-		err = SaveSong(&song, "D:/Dokumenti/Documents/Projekti/yt2mp3/output/")
+		err = SaveSong(&song, output)
 		if err != nil {
 			log.Println(err)
 		}
