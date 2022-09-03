@@ -9,6 +9,7 @@ import (
 	"yt2mp3/yt2mp3"
 
 	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kkdai/youtube/v2"
@@ -19,6 +20,18 @@ var client youtube.Client = youtube.Client{Debug: false}
 var nLinks *int
 var source string
 var output string
+
+var (
+	focusedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	blurredStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	cursorStyle         = focusedStyle.Copy()
+	noStyle             = lipgloss.NewStyle()
+	helpStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render
+	cursorModeHelpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+
+	focusedButton = focusedStyle.Copy().Render("[ Submit ]")
+	blurredButton = fmt.Sprintf("[ %s ]", blurredStyle.Render("Submit"))
+)
 
 func main() {
 
@@ -43,6 +56,8 @@ func main() {
 		fetchBar:        fetchBar,
 		downloadBar:     downloadBar,
 		editBar:         editBar,
+		inputs:          make([]textinput.Model, 2),
+		focusIndx:       0,
 		fetchPercent:    0,
 		downloadPercent: 0,
 		editPercent:     0,
@@ -52,14 +67,31 @@ func main() {
 		fetched:         false,
 		quitting:        false,
 	}
-	p := tea.NewProgram(m)
+
+	for i := range m.inputs {
+		input := textinput.New()
+		input.CursorStyle = cursorStyle
+		input.CharLimit = 64
+
+		switch i {
+		case 0:
+			input.Placeholder = "Title"
+			input.PromptStyle = focusedStyle
+			input.TextStyle = focusedStyle
+			input.Focus()
+		case 1:
+			input.Placeholder = "Artist"
+		}
+
+		m.inputs[i] = input
+	}
+
+	p := tea.NewProgram(m, tea.WithAltScreen())
 
 	if err := p.Start(); err != nil {
 		fmt.Println("Could not start program:", err)
 	}
 }
-
-var helpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#626262")).Render
 
 const (
 	padding  = 2
@@ -80,6 +112,9 @@ type model struct {
 	downloadBar progress.Model
 	editBar     progress.Model
 
+	inputs    []textinput.Model
+	focusIndx int
+
 	fetchPercent    float64
 	downloadPercent float64
 	editPercent     float64
@@ -93,7 +128,7 @@ type model struct {
 }
 
 func (m model) Init() tea.Cmd {
-	return fetchCmd(m.links[m.fetchIndx])
+	return tea.Batch(fetchCmd(m.links[m.fetchIndx]), tea.EnterAltScreen)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -130,6 +165,9 @@ func updateFetch(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		}
 
 		m.fetched = true
+		m.inputs[0].SetValue(m.songs[0].Title)
+		m.inputs[1].SetValue(m.songs[0].Artist)
+
 		return m, downloadCmd(&m.songs[0])
 	default:
 		return m, nil
@@ -138,6 +176,61 @@ func updateFetch(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "tab", "shift+tab", "enter", "up", "down":
+			s := msg.String()
+
+			// Did the user press enter while the submit button was focused?
+			// If so, exit.
+			if s == "enter" && m.focusIndx == len(m.inputs) {
+
+				m.songs[m.editIndx].Title = m.inputs[0].Value()
+				m.songs[m.editIndx].Artist = m.inputs[1].Value()
+
+				m.editIndx += 1
+				m.editPercent = float64(m.editIndx) / float64(len(m.songs))
+
+				m.inputs[0].SetValue(m.songs[m.editIndx].Title)
+				m.inputs[1].SetValue(m.songs[m.editIndx].Artist)
+				return m, nil
+			}
+
+			// Cycle indexes
+			if s == "up" || s == "shift+tab" {
+				m.focusIndx--
+			} else {
+				m.focusIndx++
+			}
+
+			if m.focusIndx > len(m.inputs) {
+				m.focusIndx = 0
+			} else if m.focusIndx < 0 {
+				m.focusIndx = len(m.inputs)
+			}
+
+			cmds := make([]tea.Cmd, len(m.inputs))
+			for i := 0; i <= len(m.inputs)-1; i++ {
+				if i == m.focusIndx {
+					// Set focused state
+					cmds[i] = m.inputs[i].Focus()
+					m.inputs[i].PromptStyle = focusedStyle
+					m.inputs[i].TextStyle = focusedStyle
+					continue
+				}
+				// Remove focused state
+				m.inputs[i].Blur()
+				m.inputs[i].PromptStyle = noStyle
+				m.inputs[i].TextStyle = noStyle
+			}
+
+			return m, tea.Batch(cmds...)
+		case "ctrl+r":
+			m.inputs[0].SetValue(m.songs[m.editIndx].Title)
+			m.inputs[1].SetValue(m.songs[m.editIndx].Artist)
+			return m, nil
+		}
+
 	case tea.WindowSizeMsg:
 		m.fetchBar.Width = msg.Width - padding*2 - 4
 		if m.fetchBar.Width > maxWidth {
@@ -153,11 +246,26 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		}
 
 		m.quitting = (m.downloadIndx == len(m.songs))
-
 		return m, nil
 	default:
 		return m, nil
 	}
+
+	// Handle character input and blinking
+	cmd := m.updateInputs(msg)
+	return m, cmd
+}
+
+func (m *model) updateInputs(msg tea.Msg) tea.Cmd {
+	var cmds = make([]tea.Cmd, len(m.inputs))
+
+	// Only text inputs with Focus() set will respond, so it's safe to simply
+	// update all of them here without any further logic.
+	for i := range m.inputs {
+		m.inputs[i], cmds[i] = m.inputs[i].Update(msg)
+	}
+
+	return tea.Batch(cmds...)
 }
 
 // The main view, which just calls the appropriate sub-view
@@ -184,12 +292,39 @@ func fetchView(m model) string {
 }
 
 func editorView(m model) string {
+	var b strings.Builder
+
+	b.WriteString(m.songs[m.editIndx].Video.Title)
+	b.WriteString("\n")
+	b.WriteString(m.songs[m.editIndx].Video.Author)
+	b.WriteString("\n\n")
+
+	for i := range m.inputs {
+		b.WriteString(m.inputs[i].View())
+		if i < len(m.inputs)-1 {
+			b.WriteRune('\n')
+		}
+	}
+
+	button := &blurredButton
+	if m.focusIndx == len(m.inputs) {
+		button = &focusedButton
+	}
+	fmt.Fprintf(&b, "\n\n%s\n\n", *button)
+
 	pad := strings.Repeat(" ", padding)
-	return "\n" +
+	//return "\n" +
+	//	pad + "Downloading songs." + "\n\n" +
+	//	pad + m.fetchBar.ViewAs(m.downloadPercent) + "\n\n" +
+	//	pad + "Editing metadata." + "\n\n" +
+	//	pad + m.fetchBar.ViewAs(m.editPercent) + "\n\n" +
+	return b.String() +
+		"\n" +
 		pad + "Downloading songs." + "\n\n" +
 		pad + m.fetchBar.ViewAs(m.downloadPercent) + "\n\n" +
 		pad + "Editing metadata." + "\n\n" +
 		pad + m.fetchBar.ViewAs(m.editPercent) + "\n\n"
+
 }
 
 func tickCmd() tea.Cmd {
@@ -213,7 +348,7 @@ func downloadCmd(song *yt2mp3.Song) tea.Cmd {
 	return func() tea.Msg {
 		err := SaveSong(song, output)
 		if err != nil {
-			log.Println(err)
+			panic(err)
 		}
 		return downloadMsg{err}
 	}

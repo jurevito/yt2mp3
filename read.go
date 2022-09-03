@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"io/fs"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -78,9 +80,20 @@ func fetchPlaylistLinks(client *youtube.Client, link string) ([]string, error) {
 }
 
 func SaveSong(song *yt2mp3.Song, path string) error {
+	reader, _, err := client.GetStream(song.Video, yt2mp3.FindFormat(song.Video.Formats))
+	if err != nil {
+		panic(err)
+	}
+
+	song.Content, err = io.ReadAll(reader)
+	if err != nil {
+		log.Println(err)
+	}
+
+	reader.Close()
 	fname := fmt.Sprintf("%s%s - %s", path, song.Artist, song.Title)
 
-	err := ioutil.WriteFile(fmt.Sprintf("%s.mp4", fname), song.Content, fs.ModePerm)
+	err = ioutil.WriteFile(fmt.Sprintf("%s.mp4", fname), song.Content, fs.ModePerm)
 	if err != nil {
 		panic(err)
 		return err
@@ -96,7 +109,8 @@ func SaveSong(song *yt2mp3.Song, path string) error {
 
 	err = cmd.Run()
 	if err != nil {
-		panic(err)
+		msg := fmt.Sprintln(fmt.Sprint(err) + ": " + stderr.String())
+		panic(msg)
 		return err
 	}
 
