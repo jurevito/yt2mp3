@@ -178,23 +178,8 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "tab", "shift+tab", "enter", "up", "down":
+		case "tab", "shift+tab", "up", "down":
 			s := msg.String()
-
-			// Did the user press enter while the submit button was focused?
-			// If so, exit.
-			if s == "enter" && m.focusIndx == len(m.inputs) {
-
-				m.songs[m.editIndx].Title = m.inputs[0].Value()
-				m.songs[m.editIndx].Artist = m.inputs[1].Value()
-
-				m.editIndx += 1
-				m.editPercent = float64(m.editIndx) / float64(len(m.songs))
-
-				m.inputs[0].SetValue(m.songs[m.editIndx].Title)
-				m.inputs[1].SetValue(m.songs[m.editIndx].Artist)
-				return m, nil
-			}
 
 			// Cycle indexes
 			if s == "up" || s == "shift+tab" {
@@ -203,10 +188,10 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				m.focusIndx++
 			}
 
-			if m.focusIndx > len(m.inputs) {
+			if m.focusIndx >= len(m.inputs) {
 				m.focusIndx = 0
 			} else if m.focusIndx < 0 {
-				m.focusIndx = len(m.inputs)
+				m.focusIndx = len(m.inputs) - 1
 			}
 
 			cmds := make([]tea.Cmd, len(m.inputs))
@@ -229,6 +214,18 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			m.inputs[0].SetValue(m.songs[m.editIndx].Title)
 			m.inputs[1].SetValue(m.songs[m.editIndx].Artist)
 			return m, nil
+		case "enter":
+			m.songs[m.editIndx].Title = m.inputs[0].Value()
+			m.songs[m.editIndx].Artist = m.inputs[1].Value()
+
+			m.editIndx += 1
+			m.editPercent = float64(m.editIndx) / float64(len(m.songs))
+
+			if m.editIndx < len(m.songs) {
+				m.inputs[0].SetValue(m.songs[m.editIndx].Title)
+				m.inputs[1].SetValue(m.songs[m.editIndx].Artist)
+				return m, nil
+			}
 		}
 
 	case tea.WindowSizeMsg:
@@ -248,7 +245,9 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		m.quitting = (m.downloadIndx == len(m.songs))
 		return m, nil
 	default:
-		return m, nil
+		// Handle character input and blinking
+		cmd := m.updateInputs(msg)
+		return m, cmd
 	}
 
 	// Handle character input and blinking
@@ -294,37 +293,24 @@ func fetchView(m model) string {
 func editorView(m model) string {
 	var b strings.Builder
 
-	b.WriteString(m.songs[m.editIndx].Video.Title)
-	b.WriteString("\n")
-	b.WriteString(m.songs[m.editIndx].Video.Author)
-	b.WriteString("\n\n")
+	// Render title and author of a video.
+	b.WriteString(m.songs[m.editIndx].Video.Title + "\n")
+	b.WriteString(m.songs[m.editIndx].Video.Author + "\n\n")
 
+	// Render text inputs.
 	for i := range m.inputs {
-		b.WriteString(m.inputs[i].View())
-		if i < len(m.inputs)-1 {
-			b.WriteRune('\n')
-		}
+		b.WriteString(m.inputs[i].View() + "\n")
 	}
 
-	button := &blurredButton
-	if m.focusIndx == len(m.inputs) {
-		button = &focusedButton
-	}
-	fmt.Fprintf(&b, "\n\n%s\n\n", *button)
-
+	// Render progress bars.
 	pad := strings.Repeat(" ", padding)
-	//return "\n" +
-	//	pad + "Downloading songs." + "\n\n" +
-	//	pad + m.fetchBar.ViewAs(m.downloadPercent) + "\n\n" +
-	//	pad + "Editing metadata." + "\n\n" +
-	//	pad + m.fetchBar.ViewAs(m.editPercent) + "\n\n" +
-	return b.String() +
-		"\n" +
-		pad + "Downloading songs." + "\n\n" +
-		pad + m.fetchBar.ViewAs(m.downloadPercent) + "\n\n" +
-		pad + "Editing metadata." + "\n\n" +
-		pad + m.fetchBar.ViewAs(m.editPercent) + "\n\n"
+	b.WriteRune('\n')
+	b.WriteString(pad + "Downloading songs." + "\n")
+	b.WriteString(pad + m.fetchBar.ViewAs(m.downloadPercent) + "\n\n")
+	b.WriteString(pad + "Editing metadata." + "\n")
+	b.WriteString(pad + m.fetchBar.ViewAs(m.editPercent) + "\n\n")
 
+	return b.String()
 }
 
 func tickCmd() tea.Cmd {
