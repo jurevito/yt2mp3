@@ -25,9 +25,13 @@ var (
 	focusedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	blurredStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	cursorStyle         = focusedStyle.Copy()
-	noStyle             = lipgloss.NewStyle()
+	removeStyle         = lipgloss.NewStyle()
 	helpStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render
 	cursorModeHelpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+
+	yesStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Render
+	maybeStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Render
+	noStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render
 
 	focusedButton = focusedStyle.Copy().Render("[ Submit ]")
 	blurredButton = fmt.Sprintf("[ %s ]", blurredStyle.Render("Submit"))
@@ -205,14 +209,16 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				}
 				// Remove focused state
 				m.inputs[i].Blur()
-				m.inputs[i].PromptStyle = noStyle
-				m.inputs[i].TextStyle = noStyle
+				m.inputs[i].PromptStyle = removeStyle
+				m.inputs[i].TextStyle = removeStyle
 			}
 
 			return m, tea.Batch(cmds...)
 		case "ctrl+r":
 			m.inputs[0].SetValue(m.songs[m.editIndx].Title)
 			m.inputs[1].SetValue(m.songs[m.editIndx].Artist)
+			m.inputs[0].CursorEnd()
+			m.inputs[1].CursorEnd()
 			return m, nil
 		case "enter":
 			m.songs[m.editIndx].Title = m.inputs[0].Value()
@@ -224,6 +230,8 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			if m.editIndx < len(m.songs) {
 				m.inputs[0].SetValue(m.songs[m.editIndx].Title)
 				m.inputs[1].SetValue(m.songs[m.editIndx].Artist)
+				m.inputs[0].CursorEnd()
+				m.inputs[1].CursorEnd()
 				return m, nil
 			}
 		}
@@ -297,6 +305,17 @@ func editorView(m model) string {
 	b.WriteString(m.songs[m.editIndx].Video.Title + "\n")
 	b.WriteString(m.songs[m.editIndx].Video.Author + "\n\n")
 
+	// Render reliability of title parsing.
+	switch m.songs[m.editIndx].Reliable {
+	case yt2mp3.Yes:
+		b.WriteString(yesStyle("[ Ok ]"))
+	case yt2mp3.Maybe:
+		b.WriteString(maybeStyle("[ Maybe ]"))
+	case yt2mp3.No:
+		b.WriteString(noStyle("[ Wrong ]"))
+	}
+	b.WriteString("\n")
+
 	// Render text inputs.
 	for i := range m.inputs {
 		b.WriteString(m.inputs[i].View() + "\n")
@@ -304,11 +323,15 @@ func editorView(m model) string {
 
 	// Render progress bars.
 	pad := strings.Repeat(" ", padding)
-	b.WriteRune('\n')
+	b.WriteString("\n")
 	b.WriteString(pad + "Downloading songs." + "\n")
 	b.WriteString(pad + m.fetchBar.ViewAs(m.downloadPercent) + "\n\n")
 	b.WriteString(pad + "Editing metadata." + "\n")
 	b.WriteString(pad + m.fetchBar.ViewAs(m.editPercent) + "\n\n")
+
+	// Render help.
+	b.WriteString(helpStyle("ctrl+r reset • enter confirm • ↑/↓ move"))
+	b.WriteString("\n")
 
 	return b.String()
 }
