@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -83,7 +82,7 @@ func SaveSong(song *yt2mp3.Song, path string) error {
 
 	err := ioutil.WriteFile(fmt.Sprintf("%s.mp4", fname), song.Content, fs.ModePerm)
 	if err != nil {
-		log.Printf("fck1: %v\n", err)
+		panic(err)
 		return err
 	}
 
@@ -97,15 +96,18 @@ func SaveSong(song *yt2mp3.Song, path string) error {
 
 	err = cmd.Run()
 	if err != nil {
+		panic(err)
 		return err
 	}
 
 	if err = os.Remove(mp4); err != nil {
+		panic(err)
 		return err
 	}
 
 	tag, err := id3.Open(mp3, id3.Options{Parse: true})
 	if err != nil {
+		panic(err)
 		return err
 	}
 	defer tag.Close()
@@ -114,6 +116,7 @@ func SaveSong(song *yt2mp3.Song, path string) error {
 	tag.SetTitle(song.Title)
 
 	if err = tag.Save(); err != nil {
+		panic(err)
 		return err
 	}
 

@@ -1,9 +1,7 @@
 package yt2mp3
 
 import (
-	"fmt"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/kkdai/youtube/v2"
@@ -103,27 +101,6 @@ func FindFormat(formats youtube.FormatList) *youtube.Format {
 	}
 
 	return nil
-}
-
-func ParseSongs(client *youtube.Client, links []string, progress *float64) ([]Song, error) {
-	fmt.Printf("Started parsing songs..\n")
-
-	songs := make([]Song, 0, len(links))
-	for i, link := range links {
-		video, err := client.GetVideo(link)
-		if err != nil {
-			panic(err)
-		}
-
-		parsed := ParseTitle(video.Title, video.Author)
-		parsed.Video = video
-		songs = append(songs, *parsed)
-		*progress = float64(i+1) / float64(len(links))
-		fmt.Printf("Current progress: %.2f\n", *progress)
-	}
-
-	sort.Slice(songs, func(i, j int) bool { return songs[i].Reliable < songs[j].Reliable })
-	return songs, nil
 }
 
 func ParseSong(client *youtube.Client, link string) (*Song, error) {

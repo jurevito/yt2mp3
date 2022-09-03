@@ -25,53 +25,30 @@ func main() {
 	nLinks = flag.Int("n_links", 0, "Only download first given number of youtube links.")
 	flag.Parse()
 
-	source := flag.Arg(0)
-	// output := flag.Arg(1)
+	source = flag.Arg(0)
+	output = flag.Arg(1)
 
 	links, err := getLinks(&client, source, *nLinks)
 	if err != nil {
 		log.Println(err)
 	}
 
-	/*
-		songs := []yt2mp3.Song{
-			{
-				"Kings & Queens",
-				"Ava Max",
-				nil,
-				nil,
-				yt2mp3.Yes,
-			},
-			{
-				"C.R.E.A.M.",
-				"Wu-Tang Clan",
-				nil,
-				nil,
-				yt2mp3.Yes,
-			},
-			{
-				"Calle",
-				"El Mola - Topic",
-				nil,
-				nil,
-				yt2mp3.No,
-			},
-		}
-	*/
-
-	fetchProg := progress.New(progress.WithScaledGradient("#FF7CCB", "#FDFF8C"))
-	downloadProg := progress.New(progress.WithScaledGradient("#FF7CCB", "#FDFF8C"))
+	fetchBar := progress.New(progress.WithScaledGradient("#FF7CCB", "#FDFF8C"))
+	downloadBar := progress.New(progress.WithScaledGradient("#FF7CCB", "#FDFF8C"))
+	editBar := progress.New(progress.WithScaledGradient("#FF7CCB", "#FDFF8C"))
 
 	m := model{
 		links:           links,
-		songs:           make([]yt2mp3.Song, len(links)),
-		fetchBar:        fetchProg,
-		downloadBar:     downloadProg,
+		songs:           make([]yt2mp3.Song, 0, len(links)),
+		fetchBar:        fetchBar,
+		downloadBar:     downloadBar,
+		editBar:         editBar,
 		fetchPercent:    0,
 		downloadPercent: 0,
+		editPercent:     0,
 		fetchIndx:       0,
-		songIndx:        0,
-		completedIndx:   0,
+		editIndx:        0,
+		downloadIndx:    0,
 		fetched:         false,
 		quitting:        false,
 	}
@@ -91,23 +68,25 @@ const (
 
 type tickMsg time.Time
 type fetchMsg *yt2mp3.Song
-type downloadMsg int32
+type downloadMsg struct{ error }
+
+func (e downloadMsg) Error() string { return e.error.Error() }
 
 type model struct {
 	links []string
 	songs []yt2mp3.Song
 
-	// Progress bars.
 	fetchBar    progress.Model
 	downloadBar progress.Model
+	editBar     progress.Model
 
 	fetchPercent    float64
 	downloadPercent float64
+	editPercent     float64
 
-	// Song indexes.
-	fetchIndx     int
-	songIndx      int
-	completedIndx int
+	fetchIndx    int
+	editIndx     int
+	downloadIndx int
 
 	fetched  bool
 	quitting bool
@@ -142,18 +121,43 @@ func updateFetch(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case fetchMsg:
-		//append(m.songs, *yt2mp3.Song(msg))
+		m.songs = append(m.songs, *(*yt2mp3.Song)(msg))
 		m.fetchIndx += 1
 		m.fetchPercent = float64(m.fetchIndx) / float64(len(m.links))
-		return m, fetchCmd(m.links[m.fetchIndx])
+
+		if m.fetchIndx < len(m.links) {
+			return m, fetchCmd(m.links[m.fetchIndx])
+		}
+
+		m.fetched = true
+		return m, downloadCmd(&m.songs[0])
 	default:
 		return m, nil
 	}
 }
 
 func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
-	panic("unimplemented")
-	return nil, nil
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.fetchBar.Width = msg.Width - padding*2 - 4
+		if m.fetchBar.Width > maxWidth {
+			m.fetchBar.Width = maxWidth
+		}
+		return m, nil
+	case downloadMsg:
+		m.downloadIndx += 1
+		m.downloadPercent = float64(m.downloadIndx) / float64(len(m.songs))
+
+		if m.downloadIndx < m.editIndx {
+			return m, downloadCmd(&m.songs[m.downloadIndx])
+		}
+
+		m.quitting = (m.downloadIndx == len(m.songs))
+
+		return m, nil
+	default:
+		return m, nil
+	}
 }
 
 // The main view, which just calls the appropriate sub-view
@@ -174,13 +178,18 @@ func (m model) View() string {
 func fetchView(m model) string {
 	pad := strings.Repeat(" ", padding)
 	return "\n" +
+		pad + "Fetching video metadata." + "\n\n" +
 		pad + m.fetchBar.ViewAs(m.fetchPercent) + "\n\n" +
 		pad + helpStyle("Press any key to quit")
 }
 
 func editorView(m model) string {
-	panic("unimplemented")
-	return ""
+	pad := strings.Repeat(" ", padding)
+	return "\n" +
+		pad + "Downloading songs." + "\n\n" +
+		pad + m.fetchBar.ViewAs(m.downloadPercent) + "\n\n" +
+		pad + "Editing metadata." + "\n\n" +
+		pad + m.fetchBar.ViewAs(m.editPercent) + "\n\n"
 }
 
 func tickCmd() tea.Cmd {
@@ -200,8 +209,12 @@ func fetchCmd(link string) tea.Cmd {
 	}
 }
 
-func downloadCmd() tea.Cmd {
+func downloadCmd(song *yt2mp3.Song) tea.Cmd {
 	return func() tea.Msg {
-		return downloadMsg(0)
+		err := SaveSong(song, output)
+		if err != nil {
+			log.Println(err)
+		}
+		return downloadMsg{err}
 	}
 }
