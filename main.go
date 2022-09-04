@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"time"
 	"yt2mp3/yt2mp3"
 
 	"github.com/charmbracelet/bubbles/progress"
@@ -55,21 +54,12 @@ func main() {
 	editBar := progress.New(progress.WithScaledGradient("#FF7CCB", "#FDFF8C"))
 
 	m := model{
-		links:           links,
-		songs:           make([]yt2mp3.Song, 0, len(links)),
-		fetchBar:        fetchBar,
-		downloadBar:     downloadBar,
-		editBar:         editBar,
-		inputs:          make([]textinput.Model, 2),
-		focusIndx:       0,
-		fetchPercent:    0,
-		downloadPercent: 0,
-		editPercent:     0,
-		fetchIndx:       0,
-		editIndx:        0,
-		downloadIndx:    0,
-		fetched:         false,
-		quitting:        false,
+		links:       links,
+		songs:       make([]yt2mp3.Song, 0, len(links)),
+		fetchBar:    fetchBar,
+		downloadBar: downloadBar,
+		editBar:     editBar,
+		inputs:      make([]textinput.Model, 2),
 	}
 
 	for i := range m.inputs {
@@ -102,7 +92,6 @@ const (
 	maxWidth = 80
 )
 
-type tickMsg time.Time
 type fetchMsg *yt2mp3.Song
 type downloadMsg struct{ error }
 
@@ -220,6 +209,8 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			m.inputs[0].CursorEnd()
 			m.inputs[1].CursorEnd()
 			return m, nil
+		case "ctrl+s":
+			return m, nil
 		case "enter":
 			m.songs[m.editIndx].Title = m.inputs[0].Value()
 			m.songs[m.editIndx].Artist = m.inputs[1].Value()
@@ -235,7 +226,6 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		}
-
 	case tea.WindowSizeMsg:
 		m.fetchBar.Width = msg.Width - padding*2 - 4
 		if m.fetchBar.Width > maxWidth {
@@ -293,7 +283,7 @@ func (m model) View() string {
 func fetchView(m model) string {
 	pad := strings.Repeat(" ", padding)
 	return "\n" +
-		pad + "Fetching video metadata." + "\n\n" +
+		pad + "Fetching video metadata." + "\n" +
 		pad + m.fetchBar.ViewAs(m.fetchPercent) + "\n\n" +
 		pad + helpStyle("Press any key to quit")
 }
@@ -308,11 +298,11 @@ func editorView(m model) string {
 	// Render reliability of title parsing.
 	switch m.songs[m.editIndx].Reliable {
 	case yt2mp3.Yes:
-		b.WriteString(yesStyle("[ Ok ]"))
+		b.WriteString(yesStyle("[ ✓ ]"))
 	case yt2mp3.Maybe:
-		b.WriteString(maybeStyle("[ Maybe ]"))
+		b.WriteString(maybeStyle("[ ? ]"))
 	case yt2mp3.No:
-		b.WriteString(noStyle("[ Wrong ]"))
+		b.WriteString(noStyle("[ ! ]"))
 	}
 	b.WriteString("\n")
 
@@ -330,16 +320,10 @@ func editorView(m model) string {
 	b.WriteString(pad + m.fetchBar.ViewAs(m.editPercent) + "\n\n")
 
 	// Render help.
-	b.WriteString(helpStyle("ctrl+r reset • enter confirm • ↑/↓ move"))
+	b.WriteString(helpStyle("ctrl+r reset • ctrl+s skip • enter confirm • ↑/↓ move "))
 	b.WriteString("\n")
 
 	return b.String()
-}
-
-func tickCmd() tea.Cmd {
-	return tea.Tick(time.Second/2, func(t time.Time) tea.Msg {
-		return tickMsg(t)
-	})
 }
 
 func fetchCmd(link string) tea.Cmd {
