@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 	"yt2mp3/yt2mp3"
 
@@ -112,9 +113,10 @@ type model struct {
 	downloadPercent float64
 	editPercent     float64
 
-	fetchIndx    int
-	editIndx     int
-	downloadIndx int
+	fetchIndx     int
+	editIndx      int
+	downloadIndx  int
+	downloadCount int
 
 	fetched  bool
 	quitting bool
@@ -157,11 +159,15 @@ func updateFetch(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			return m, fetchCmd(m.links[m.fetchIndx])
 		}
 
+		sort.Slice(m.songs, func(i, j int) bool {
+			return m.songs[i].Reliable < m.songs[j].Reliable
+		})
+
 		m.fetched = true
 		m.inputs[0].SetValue(m.songs[0].Title)
 		m.inputs[1].SetValue(m.songs[0].Artist)
 
-		return m, downloadCmd(&m.songs[0])
+		return m, nil
 	default:
 		return m, nil
 	}
@@ -214,6 +220,7 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		case "enter":
 			m.songs[m.editIndx].Title = m.inputs[0].Value()
 			m.songs[m.editIndx].Artist = m.inputs[1].Value()
+			cmd := downloadCmd(&m.songs[m.editIndx])
 
 			m.editIndx += 1
 			m.editPercent = float64(m.editIndx) / float64(len(m.songs))
@@ -221,9 +228,10 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			if m.editIndx < len(m.songs) {
 				m.inputs[0].SetValue(m.songs[m.editIndx].Title)
 				m.inputs[1].SetValue(m.songs[m.editIndx].Artist)
+
 				m.inputs[0].CursorEnd()
 				m.inputs[1].CursorEnd()
-				return m, nil
+				return m, cmd
 			}
 		}
 	case tea.WindowSizeMsg:
@@ -233,19 +241,11 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case downloadMsg:
-		m.downloadIndx += 1
-		m.downloadPercent = float64(m.downloadIndx) / float64(len(m.songs))
+		m.downloadCount += 1
+		m.downloadPercent = float64(m.downloadCount) / float64(len(m.songs))
 
-		if m.downloadIndx < m.editIndx {
-			return m, downloadCmd(&m.songs[m.downloadIndx])
-		}
-
-		m.quitting = (m.downloadIndx == len(m.songs))
+		m.quitting = (m.downloadCount == len(m.songs))
 		return m, nil
-	default:
-		// Handle character input and blinking
-		cmd := m.updateInputs(msg)
-		return m, cmd
 	}
 
 	// Handle character input and blinking
