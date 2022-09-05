@@ -93,6 +93,15 @@ const (
 	maxWidth = 80
 )
 
+type View int
+
+const (
+	fetch View = iota
+	edit
+	dwnld
+	err
+)
+
 type fetchMsg *yt2mp3.Song
 type downloadMsg struct{ error }
 
@@ -118,7 +127,7 @@ type model struct {
 	downloadIndx  int
 	downloadCount int
 
-	fetched  bool
+	view     int
 	quitting bool
 }
 
@@ -135,11 +144,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	if !m.fetched {
+	switch m.view {
+	case int(fetch):
 		return updateFetch(msg, m)
+	case int(edit):
+		return updateEditor(msg, m)
+	case int(dwnld):
+		return updateEditor(msg, m) // TODO
+	default:
+		return updateEditor(msg, m) // TODO
 	}
-
-	return updateEditor(msg, m)
 }
 
 func updateFetch(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
@@ -163,7 +177,7 @@ func updateFetch(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			return m.songs[i].Reliable < m.songs[j].Reliable
 		})
 
-		m.fetched = true
+		m.view = int(edit)
 		m.inputs[0].SetValue(m.songs[0].Title)
 		m.inputs[1].SetValue(m.songs[0].Artist)
 
@@ -272,11 +286,15 @@ func (m model) View() string {
 		return "\n  See you later!\n\n"
 	}
 
-	if !m.fetched {
+	switch m.view {
+	case int(fetch):
 		s = fetchView(m)
-	} else {
+	case int(edit):
 		s = editorView(m)
+	case int(dwnld):
+	case int(err):
 	}
+
 	return indent.String("\n"+s+"\n\n", 2)
 }
 
