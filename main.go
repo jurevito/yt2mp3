@@ -98,11 +98,13 @@ type View int
 const (
 	fetch View = iota
 	edit
-	dwnld
-	err
+	finish
 )
 
-type fetchMsg *yt2mp3.Song
+type fetchMsg struct {
+	err  error
+	song *yt2mp3.Song
+}
 type downloadMsg struct{ error }
 
 func (e downloadMsg) Error() string { return e.error.Error() }
@@ -124,7 +126,6 @@ type model struct {
 
 	fetchIndx     int
 	editIndx      int
-	downloadIndx  int
 	downloadCount int
 
 	view     int
@@ -149,8 +150,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return updateFetch(msg, m)
 	case int(edit):
 		return updateEditor(msg, m)
-	case int(dwnld):
-		return updateEditor(msg, m) // TODO
+	case int(finish):
+		return updateFinish(msg, m)
 	default:
 		return updateEditor(msg, m) // TODO
 	}
@@ -165,7 +166,7 @@ func updateFetch(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case fetchMsg:
-		m.songs = append(m.songs, *(*yt2mp3.Song)(msg))
+		m.songs = append(m.songs, *(*yt2mp3.Song)(msg.song))
 		m.fetchIndx += 1
 		m.fetchPercent = float64(m.fetchIndx) / float64(len(m.links))
 
@@ -232,12 +233,15 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		case "ctrl+s":
 			return m, nil
 		case "enter":
-			m.songs[m.editIndx].Title = m.inputs[0].Value()
-			m.songs[m.editIndx].Artist = m.inputs[1].Value()
-			cmd := downloadCmd(&m.songs[m.editIndx])
+			var cmd tea.Cmd
+			if m.editIndx < len(m.songs) {
+				m.songs[m.editIndx].Title = m.inputs[0].Value()
+				m.songs[m.editIndx].Artist = m.inputs[1].Value()
+				cmd = downloadCmd(&m.songs[m.editIndx])
 
-			m.editIndx += 1
-			m.editPercent = float64(m.editIndx) / float64(len(m.songs))
+				m.editIndx += 1
+				m.editPercent = float64(m.editIndx) / float64(len(m.songs))
+			}
 
 			if m.editIndx < len(m.songs) {
 				m.inputs[0].SetValue(m.songs[m.editIndx].Title)
@@ -245,8 +249,9 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 				m.inputs[0].CursorEnd()
 				m.inputs[1].CursorEnd()
-				return m, cmd
 			}
+
+			return m, cmd
 		}
 	case tea.WindowSizeMsg:
 		m.fetchBar.Width = msg.Width - padding*2 - 4
@@ -279,6 +284,13 @@ func (m *model) updateInputs(msg tea.Msg) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+func updateFinish(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
+	//switch msg := msg.(type) {
+	//
+	//}
+	return m, nil
+}
+
 // The main view, which just calls the appropriate sub-view
 func (m model) View() string {
 	var s string
@@ -291,8 +303,8 @@ func (m model) View() string {
 		s = fetchView(m)
 	case int(edit):
 		s = editorView(m)
-	case int(dwnld):
-	case int(err):
+	case int(finish):
+		s = finishView(m)
 	}
 
 	return indent.String("\n"+s+"\n\n", 2)
@@ -309,24 +321,26 @@ func fetchView(m model) string {
 func editorView(m model) string {
 	var b strings.Builder
 
-	// Render title and author of a video.
-	b.WriteString(m.songs[m.editIndx].Video.Title + "\n")
-	b.WriteString(m.songs[m.editIndx].Video.Author + "\n\n")
+	if m.editIndx < len(m.songs) {
+		// Render title and author of a video.
+		b.WriteString(m.songs[m.editIndx].Video.Title + "\n")
+		b.WriteString(m.songs[m.editIndx].Video.Author + "\n\n")
 
-	// Render reliability of title parsing.
-	switch m.songs[m.editIndx].Reliable {
-	case yt2mp3.Yes:
-		b.WriteString(yesStyle("[ ✓ ]"))
-	case yt2mp3.Maybe:
-		b.WriteString(maybeStyle("[ ? ]"))
-	case yt2mp3.No:
-		b.WriteString(noStyle("[ ! ]"))
-	}
-	b.WriteString("\n")
+		// Render reliability of title parsing.
+		switch m.songs[m.editIndx].Reliable {
+		case yt2mp3.Yes:
+			b.WriteString(yesStyle("[ ✓ ]"))
+		case yt2mp3.Maybe:
+			b.WriteString(maybeStyle("[ ? ]"))
+		case yt2mp3.No:
+			b.WriteString(noStyle("[ ! ]"))
+		}
+		b.WriteString("\n")
 
-	// Render text inputs.
-	for i := range m.inputs {
-		b.WriteString(m.inputs[i].View() + "\n")
+		// Render text inputs.
+		for i := range m.inputs {
+			b.WriteString(m.inputs[i].View() + "\n")
+		}
 	}
 
 	// Render progress bars.
@@ -338,9 +352,16 @@ func editorView(m model) string {
 	b.WriteString(pad + m.fetchBar.ViewAs(m.editPercent) + "\n\n")
 
 	// Render help.
-	b.WriteString(helpStyle("ctrl+r reset • ctrl+s skip • enter confirm • ↑/↓ move "))
+	b.WriteString(helpStyle("ctrl+r reset • ctrl+s skip • enter confirm • ↑/↓ move • q quit"))
 	b.WriteString("\n")
 
+	return b.String()
+}
+
+func finishView(m model) string {
+	// pad := strings.Repeat(" ", padding)
+	var b strings.Builder
+	b.WriteString("Finish view.")
 	return b.String()
 }
 
@@ -351,7 +372,7 @@ func fetchCmd(link string) tea.Cmd {
 			panic(err)
 		}
 
-		return fetchMsg(song)
+		return fetchMsg{err, song}
 	}
 }
 
