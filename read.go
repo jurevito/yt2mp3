@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/fs"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -82,12 +81,12 @@ func fetchPlaylistLinks(client *youtube.Client, link string) ([]string, error) {
 func SaveSong(song *yt2mp3.Song, path string) error {
 	reader, _, err := client.GetStream(song.Video, yt2mp3.FindFormat(song.Video.Formats))
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("Could not get video stream.")
 	}
 
 	song.Content, err = io.ReadAll(reader)
 	if err != nil {
-		log.Println(err)
+		return fmt.Errorf("Could not read video stream.")
 	}
 
 	reader.Close()
@@ -95,8 +94,7 @@ func SaveSong(song *yt2mp3.Song, path string) error {
 
 	err = ioutil.WriteFile(fmt.Sprintf("%s.mp4", fname), song.Content, fs.ModePerm)
 	if err != nil {
-		panic(err)
-		return err
+		return fmt.Errorf("Could not save mp4 file.")
 	}
 
 	mp4 := fmt.Sprintf("%s.mp4", fname)
@@ -109,20 +107,17 @@ func SaveSong(song *yt2mp3.Song, path string) error {
 
 	err = cmd.Run()
 	if err != nil {
-		msg := fmt.Sprintln(fmt.Sprint(err) + ": " + stderr.String())
-		panic(msg)
-		return err
+		//msg := fmt.Sprintln(fmt.Sprint(err) + ": " + stderr.String())
+		return fmt.Errorf("%v: %s", err, stderr.String())
 	}
 
 	if err = os.Remove(mp4); err != nil {
-		panic(err)
-		return err
+		return fmt.Errorf("Could not remove mp4 file.")
 	}
 
 	tag, err := id3.Open(mp3, id3.Options{Parse: true})
 	if err != nil {
-		panic(err)
-		return err
+		return fmt.Errorf("Could not open mp3 file to edit metadata.")
 	}
 	defer tag.Close()
 
@@ -130,8 +125,7 @@ func SaveSong(song *yt2mp3.Song, path string) error {
 	tag.SetTitle(song.Title)
 
 	if err = tag.Save(); err != nil {
-		panic(err)
-		return err
+		return fmt.Errorf("Could not save edited metadata.")
 	}
 
 	return nil

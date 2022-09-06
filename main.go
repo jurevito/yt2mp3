@@ -6,10 +6,12 @@ import (
 	"log"
 	"sort"
 	"strings"
+	"time"
 	"yt2mp3/yt2mp3"
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/timer"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kkdai/youtube/v2"
@@ -60,6 +62,7 @@ func main() {
 		fetchBar:    fetchBar,
 		downloadBar: downloadBar,
 		editBar:     editBar,
+		timer:       timer.NewWithInterval(time.Second*5, time.Second),
 		inputs:      make([]textinput.Model, 2),
 	}
 
@@ -101,13 +104,9 @@ const (
 	finish
 )
 
-type fetchMsg struct {
-	err  error
-	song *yt2mp3.Song
-}
-type downloadMsg struct{ error }
-
-func (e downloadMsg) Error() string { return e.error.Error() }
+type fetchMsg *yt2mp3.Song
+type errorMsg error
+type downloadMsg struct{}
 
 type model struct {
 	links []string
@@ -116,6 +115,7 @@ type model struct {
 	fetchBar    progress.Model
 	downloadBar progress.Model
 	editBar     progress.Model
+	timer       timer.Model
 
 	inputs    []textinput.Model
 	focusIndx int
@@ -128,6 +128,7 @@ type model struct {
 	editIndx      int
 	downloadCount int
 
+	err      error
 	view     int
 	quitting bool
 }
@@ -166,7 +167,7 @@ func updateFetch(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case fetchMsg:
-		m.songs = append(m.songs, *(*yt2mp3.Song)(msg.song))
+		m.songs = append(m.songs, *(*yt2mp3.Song)(msg))
 		m.fetchIndx += 1
 		m.fetchPercent = float64(m.fetchIndx) / float64(len(m.links))
 
@@ -183,6 +184,10 @@ func updateFetch(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		m.inputs[1].SetValue(m.songs[0].Artist)
 
 		return m, nil
+	case errorMsg:
+		m.view = int(finish)
+		m.err = error(msg)
+		return m, m.timer.Init()
 	default:
 		return m, nil
 	}
@@ -233,6 +238,12 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		case "ctrl+s":
 			return m, nil
 		case "enter":
+
+			if m.downloadCount == len(m.songs) {
+				m.view = int(finish)
+				return m, m.timer.Init()
+			}
+
 			var cmd tea.Cmd
 			if m.editIndx < len(m.songs) {
 				m.songs[m.editIndx].Title = m.inputs[0].Value()
@@ -265,6 +276,10 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 		m.quitting = (m.downloadCount == len(m.songs))
 		return m, nil
+	case errorMsg:
+		m.view = int(finish)
+		m.err = error(msg)
+		return m, m.timer.Init()
 	}
 
 	// Handle character input and blinking
@@ -285,9 +300,19 @@ func (m *model) updateInputs(msg tea.Msg) tea.Cmd {
 }
 
 func updateFinish(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
-	//switch msg := msg.(type) {
-	//
-	//}
+	switch msg := msg.(type) {
+	case timer.TickMsg:
+		var cmd tea.Cmd
+		m.timer, cmd = m.timer.Update(msg)
+		return m, cmd
+	case timer.TimeoutMsg:
+		m.quitting = true
+		return m, tea.Quit
+	case errorMsg:
+		m.err = error(msg)
+		return m, nil
+	}
+
 	return m, nil
 }
 
@@ -359,9 +384,13 @@ func editorView(m model) string {
 }
 
 func finishView(m model) string {
-	// pad := strings.Repeat(" ", padding)
+
+	pad := strings.Repeat(" ", padding)
 	var b strings.Builder
-	b.WriteString("Finish view.")
+	b.WriteString(pad + focusedStyle.Render("FINISH VIEW!\n"))
+	b.WriteString(pad + m.timer.View() + "\n")
+	b.WriteString(fmt.Sprint(m.err))
+
 	return b.String()
 }
 
@@ -369,10 +398,10 @@ func fetchCmd(link string) tea.Cmd {
 	return func() tea.Msg {
 		song, err := yt2mp3.ParseSong(&client, link)
 		if err != nil {
-			panic(err)
+			return errorMsg(err)
 		}
 
-		return fetchMsg{err, song}
+		return fetchMsg(song)
 	}
 }
 
@@ -380,8 +409,8 @@ func downloadCmd(song *yt2mp3.Song) tea.Cmd {
 	return func() tea.Msg {
 		err := SaveSong(song, output)
 		if err != nil {
-			panic(err)
+			return errorMsg(err)
 		}
-		return downloadMsg{err}
+		return downloadMsg{}
 	}
 }
