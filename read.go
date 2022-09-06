@@ -12,7 +12,6 @@ import (
 	"strings"
 	"yt2mp3/yt2mp3"
 
-	id3 "github.com/bogem/id3v2/v2"
 	"github.com/kkdai/youtube/v2"
 )
 
@@ -100,32 +99,20 @@ func SaveSong(song *yt2mp3.Song, path string) error {
 	mp4 := fmt.Sprintf("%s.mp4", fname)
 	mp3 := fmt.Sprintf("%s.mp3", fname)
 
-	cmd := exec.Command("ffmpeg", "-y", "-i", mp4, "-vn", mp3)
+	title := fmt.Sprintf("title=\"%s\"", song.Title)
+	artist := fmt.Sprintf("artist=\"%s\"", song.Artist)
+	cmd := exec.Command("ffmpeg", "-y", "-i", mp4, "-vn", "-metadata", title, "-metadata", artist, mp3)
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
 	err = cmd.Run()
 	if err != nil {
-		//msg := fmt.Sprintln(fmt.Sprint(err) + ": " + stderr.String())
 		return fmt.Errorf("%v: %s", err, stderr.String())
 	}
 
 	if err = os.Remove(mp4); err != nil {
 		return fmt.Errorf("Could not remove mp4 file.")
-	}
-
-	tag, err := id3.Open(mp3, id3.Options{Parse: true})
-	if err != nil {
-		return fmt.Errorf("Could not open mp3 file to edit metadata.")
-	}
-	defer tag.Close()
-
-	tag.SetArtist(song.Artist)
-	tag.SetTitle(song.Title)
-
-	if err = tag.Save(); err != nil {
-		return fmt.Errorf("Could not save edited metadata.")
 	}
 
 	return nil
