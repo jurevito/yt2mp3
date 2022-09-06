@@ -3,7 +3,6 @@ module yt2mp3
 go 1.18
 
 require (
-	github.com/bogem/id3v2/v2 v2.1.2
 	github.com/charmbracelet/bubbles v0.13.0
 	github.com/charmbracelet/bubbletea v0.22.1
 	github.com/charmbracelet/lipgloss v0.5.0

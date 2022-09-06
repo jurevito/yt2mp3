@@ -62,7 +62,7 @@ func main() {
 		fetchBar:    fetchBar,
 		downloadBar: downloadBar,
 		editBar:     editBar,
-		timer:       timer.NewWithInterval(time.Second*5, time.Second),
+		timer:       timer.NewWithInterval(time.Second*10, time.Second),
 		inputs:      make([]textinput.Model, 2),
 	}
 
@@ -124,7 +124,7 @@ type model struct {
 	downloadPercent float64
 	editPercent     float64
 
-	fetchIndx     int
+	fetchCount    int
 	editIndx      int
 	downloadCount int
 
@@ -134,7 +134,7 @@ type model struct {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(fetchCmd(m.links[m.fetchIndx]), tea.EnterAltScreen)
+	return tea.Batch(tea.EnterAltScreen, fetchCmd(m.links[0]))
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -168,11 +168,11 @@ func updateFetch(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		return m, nil
 	case fetchMsg:
 		m.songs = append(m.songs, *(*yt2mp3.Song)(msg))
-		m.fetchIndx += 1
-		m.fetchPercent = float64(m.fetchIndx) / float64(len(m.links))
+		m.fetchCount += 1
+		m.fetchPercent = float64(m.fetchCount) / float64(len(m.links))
 
-		if m.fetchIndx < len(m.links) {
-			return m, fetchCmd(m.links[m.fetchIndx])
+		if m.fetchCount < len(m.links) {
+			return m, fetchCmd(m.links[m.fetchCount])
 		}
 
 		sort.Slice(m.songs, func(i, j int) bool {
