@@ -254,6 +254,11 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				m.editPercent = float64(m.editIndx) / float64(len(m.songs))
 			}
 
+			if m.downloadCount == len(m.songs) {
+				m.view = int(finish)
+				return m, m.timer.Init()
+			}
+
 			if m.editIndx < len(m.songs) {
 				m.inputs[0].SetValue(m.songs[m.editIndx].Title)
 				m.inputs[1].SetValue(m.songs[m.editIndx].Artist)
@@ -264,12 +269,6 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 			return m, nil
 		case "enter":
-
-			if m.downloadCount == len(m.songs) {
-				m.view = int(finish)
-				return m, m.timer.Init()
-			}
-
 			var cmd tea.Cmd
 			if m.editIndx < len(m.songs) {
 				m.songs[m.editIndx].Title = m.inputs[0].Value()
@@ -297,13 +296,18 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case downloadMsg:
+
 		m.downloadCount += 1
 		m.downloadPercent = float64(m.downloadCount) / float64(len(m.songs))
+
+		if m.downloadCount == len(m.songs) {
+			m.view = int(finish)
+			return m, m.timer.Init()
+		}
 
 		return m, nil
 	case errorMsg:
 		m.view = int(finish)
-		m.err = error(msg)
 		return m, m.timer.Init()
 	}
 
@@ -365,7 +369,7 @@ func fetchView(m model) string {
 	return "\n" +
 		pad + "Fetching video metadata." + "\n" +
 		pad + m.fetchBar.ViewAs(m.fetchPercent) + "\n\n" +
-		pad + helpStyle("Press any key to quit")
+		pad + helpStyle("Press q button to quit.")
 }
 
 func editorView(m model) string {
