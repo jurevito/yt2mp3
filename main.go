@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"sort"
@@ -60,7 +61,7 @@ func main() {
 	editBar := progress.New(progress.WithScaledGradient("#FF7CCB", "#FDFF8C"))
 
 	m := model{
-		skip:        make([]bool, len(links)),
+		downloaded:  make([]bool, len(links)),
 		links:       links,
 		songs:       make([]yt2mp3.Song, 0, len(links)),
 		fetchBar:    fetchBar,
@@ -110,11 +111,12 @@ const (
 
 type fetchMsg *yt2mp3.Song
 type errorMsg error
-type downloadMsg struct{}
+type downloadMsg int
+type saveMsg int
 
 type model struct {
-	skipCount int
-	skip      []bool
+	skipCount  int
+	downloaded []bool
 
 	links []string
 	songs []yt2mp3.Song
@@ -244,7 +246,6 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "ctrl+s":
 			if m.editIndx < len(m.songs) {
-				m.skip[m.editIndx] = true
 				m.skipCount += 1
 
 				m.downloadCount += 1
@@ -255,8 +256,13 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			}
 
 			if m.downloadCount == len(m.songs) {
-				m.view = int(finish)
-				return m, m.timer.Init()
+				skipped := make([]string, 0, len(m.links))
+				for i := range m.links {
+					if !m.downloaded[i] {
+						skipped = append(skipped, m.links[i])
+					}
+				}
+				return m, saveCmd(skipped)
 			}
 
 			if m.editIndx < len(m.songs) {
@@ -273,7 +279,7 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			if m.editIndx < len(m.songs) {
 				m.songs[m.editIndx].Title = m.inputs[0].Value()
 				m.songs[m.editIndx].Artist = m.inputs[1].Value()
-				cmd = downloadCmd(&m.songs[m.editIndx])
+				cmd = downloadCmd(&m.songs[m.editIndx], m.editIndx)
 
 				m.editIndx += 1
 				m.editPercent = float64(m.editIndx) / float64(len(m.songs))
@@ -299,14 +305,36 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 		m.downloadCount += 1
 		m.downloadPercent = float64(m.downloadCount) / float64(len(m.songs))
+		m.downloaded[int(msg)] = true
 
 		if m.downloadCount == len(m.songs) {
-			m.view = int(finish)
-			return m, m.timer.Init()
+			skipped := make([]string, 0, len(m.links))
+			for i := range m.links {
+				if !m.downloaded[i] {
+					skipped = append(skipped, m.links[i])
+				}
+			}
+			return m, saveCmd(skipped)
 		}
 
 		return m, nil
 	case errorMsg:
+		m.skipCount += 1
+		m.downloadCount += 1
+		m.downloadPercent = float64(m.downloadCount) / float64(len(m.songs))
+
+		if m.downloadCount == len(m.songs) {
+			skipped := make([]string, 0, len(m.links))
+			for i := range m.links {
+				if !m.downloaded[i] {
+					skipped = append(skipped, m.links[i])
+				}
+			}
+			return m, saveCmd(skipped)
+		}
+
+		return m, nil
+	case saveMsg:
 		m.view = int(finish)
 		return m, m.timer.Init()
 	}
@@ -433,11 +461,10 @@ func fetchCmd(link string) tea.Cmd {
 	}
 }
 
-func downloadCmd(song *yt2mp3.Song) tea.Cmd {
+func downloadCmd(song *yt2mp3.Song, index int) tea.Cmd {
 	return func() tea.Msg {
 
-		min := 1
-		max := 5
+		max, min := 5, 1
 		delay := rand.Intn(max-min) + min
 		err := retry(5, time.Duration(delay)*time.Second, func() error {
 			return SaveSong(song, output)
@@ -446,7 +473,7 @@ func downloadCmd(song *yt2mp3.Song) tea.Cmd {
 		if err != nil {
 			return errorMsg(err)
 		}
-		return downloadMsg{}
+		return downloadMsg(index)
 	}
 }
 
@@ -459,4 +486,17 @@ func retry(attempts int, sleep time.Duration, f func() error) error {
 		return err
 	}
 	return nil
+}
+
+func saveCmd(skipped []string) tea.Cmd {
+	return func() tea.Msg {
+		path := output + "skip.txt"
+		b := []byte(strings.Join(skipped, "\n"))
+		err := ioutil.WriteFile(path, b, 0644)
+		if err != nil {
+			return errorMsg(err)
+		}
+
+		return saveMsg(len(skipped))
+	}
 }
