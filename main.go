@@ -60,6 +60,7 @@ func main() {
 	editBar := progress.New(progress.WithScaledGradient("#FF7CCB", "#FDFF8C"))
 
 	m := model{
+		skip:        make([]bool, len(links)),
 		links:       links,
 		songs:       make([]yt2mp3.Song, 0, len(links)),
 		fetchBar:    fetchBar,
@@ -112,6 +113,9 @@ type errorMsg error
 type downloadMsg struct{}
 
 type model struct {
+	skipCount int
+	skip      []bool
+
 	links []string
 	songs []yt2mp3.Song
 
@@ -239,6 +243,25 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			m.inputs[1].CursorEnd()
 			return m, nil
 		case "ctrl+s":
+			if m.editIndx < len(m.songs) {
+				m.skip[m.editIndx] = true
+				m.skipCount += 1
+
+				m.downloadCount += 1
+				m.downloadPercent = float64(m.downloadCount) / float64(len(m.songs))
+
+				m.editIndx += 1
+				m.editPercent = float64(m.editIndx) / float64(len(m.songs))
+			}
+
+			if m.editIndx < len(m.songs) {
+				m.inputs[0].SetValue(m.songs[m.editIndx].Title)
+				m.inputs[1].SetValue(m.songs[m.editIndx].Artist)
+
+				m.inputs[0].CursorEnd()
+				m.inputs[1].CursorEnd()
+			}
+
 			return m, nil
 		case "enter":
 
@@ -277,7 +300,6 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		m.downloadCount += 1
 		m.downloadPercent = float64(m.downloadCount) / float64(len(m.songs))
 
-		m.quitting = (m.downloadCount == len(m.songs))
 		return m, nil
 	case errorMsg:
 		m.view = int(finish)
@@ -387,7 +409,6 @@ func editorView(m model) string {
 }
 
 func finishView(m model) string {
-
 	pad := strings.Repeat(" ", padding)
 	var b strings.Builder
 	b.WriteString(pad + focusedStyle.Render("FINISH VIEW!\n"))
