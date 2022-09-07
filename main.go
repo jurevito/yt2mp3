@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"sort"
 	"strings"
 	"time"
@@ -407,10 +408,28 @@ func fetchCmd(link string) tea.Cmd {
 
 func downloadCmd(song *yt2mp3.Song) tea.Cmd {
 	return func() tea.Msg {
-		err := SaveSong(song, output)
+
+		min := 1
+		max := 5
+		delay := rand.Intn(max-min) + min
+		err := retry(5, time.Duration(delay)*time.Second, func() error {
+			return SaveSong(song, output)
+		})
+
 		if err != nil {
 			return errorMsg(err)
 		}
 		return downloadMsg{}
 	}
+}
+
+func retry(attempts int, sleep time.Duration, f func() error) error {
+	if err := f(); err != nil {
+		if attempts--; attempts > 0 {
+			time.Sleep(sleep)
+			return retry(attempts, 4*sleep, f)
+		}
+		return err
+	}
+	return nil
 }

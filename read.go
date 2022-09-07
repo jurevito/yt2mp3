@@ -80,12 +80,12 @@ func fetchPlaylistLinks(client *youtube.Client, link string) ([]string, error) {
 func SaveSong(song *yt2mp3.Song, path string) error {
 	reader, _, err := client.GetStream(song.Video, yt2mp3.FindFormat(song.Video.Formats))
 	if err != nil {
-		return fmt.Errorf("Could not get video stream.")
+		return fmt.Errorf("Could not get video stream from song \"%s - %s\"", song.Artist, song.Title)
 	}
 
 	song.Content, err = io.ReadAll(reader)
 	if err != nil {
-		return fmt.Errorf("Could not read video stream.")
+		return fmt.Errorf("Could not read video stream from song \"%s - %s\"", song.Artist, song.Title)
 	}
 
 	reader.Close()
