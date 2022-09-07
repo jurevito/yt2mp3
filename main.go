@@ -21,6 +21,7 @@ import (
 
 var client youtube.Client = youtube.Client{Debug: false}
 var nLinks *int
+var skip *int
 var source string
 var output string
 
@@ -42,13 +43,14 @@ var (
 
 func main() {
 
-	nLinks = flag.Int("n_links", 0, "Only download first given number of youtube links.")
+	nLinks = flag.Int("n_links", 0, "Download first given number of youtube links.")
+	skip = flag.Int("skip", 0, "Skip first number of youtube links.")
 	flag.Parse()
 
 	source = flag.Arg(0)
 	output = flag.Arg(1)
 
-	links, err := getLinks(&client, source, *nLinks)
+	links, err := getLinks(&client, source, *nLinks, *skip)
 	if err != nil {
 		log.Println(err)
 	}

@@ -15,7 +15,7 @@ import (
 	"github.com/kkdai/youtube/v2"
 )
 
-func getLinks(client *youtube.Client, source string, nLinks int) (links []string, err error) {
+func getLinks(client *youtube.Client, source string, nLinks int, skip int) (links []string, err error) {
 	isPlaylist := strings.Contains(source, "https://www.youtube.com/playlist")
 
 	if isPlaylist {
@@ -29,7 +29,7 @@ func getLinks(client *youtube.Client, source string, nLinks int) (links []string
 	}
 
 	if nLinks != 0 {
-		links = links[:nLinks]
+		links = links[skip:nLinks]
 	}
 
 	return
