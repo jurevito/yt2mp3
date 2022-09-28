@@ -27,19 +27,22 @@ var source string
 var output string
 
 var (
-	focusedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	blurredStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	cursorStyle         = focusedStyle.Copy()
-	removeStyle         = lipgloss.NewStyle()
-	helpStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render
-	cursorModeHelpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	focusedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	blurredStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	cursorStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render
+	keyStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("145")).Render
+	barTextStyle = lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color("0")).Render
+	songStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
+	removeStyle  = lipgloss.NewStyle()
+
+	failedStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	skippedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("31"))
+	downloadedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
 
 	yesStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Render
 	maybeStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Render
-	noStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render
-
-	focusedButton = focusedStyle.Copy().Render("[ Submit ]")
-	blurredButton = fmt.Sprintf("[ %s ]", blurredStyle.Render("Submit"))
+	noStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render
 )
 
 func main() {
@@ -136,6 +139,7 @@ type model struct {
 	fetchCount    int
 	editIndx      int
 	downloadCount int
+	failedCount   int
 
 	err      error
 	view     int
@@ -247,15 +251,13 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		case "ctrl+s":
 			if m.editIndx < len(m.songs) {
 				m.skipCount += 1
-
-				m.downloadCount += 1
-				m.downloadPercent = float64(m.downloadCount) / float64(len(m.songs))
+				m.downloadPercent = float64(m.downloadCount+m.failedCount+m.skipCount) / float64(len(m.songs))
 
 				m.editIndx += 1
 				m.editPercent = float64(m.editIndx) / float64(len(m.songs))
 			}
 
-			if m.downloadCount == len(m.songs) {
+			if m.downloadCount+m.failedCount+m.skipCount == len(m.songs) {
 				skipped := make([]string, 0, len(m.links))
 				for i := range m.links {
 					if !m.downloaded[i] {
@@ -304,10 +306,10 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	case downloadMsg:
 
 		m.downloadCount += 1
-		m.downloadPercent = float64(m.downloadCount) / float64(len(m.songs))
+		m.downloadPercent = float64(m.downloadCount+m.failedCount+m.skipCount) / float64(len(m.songs))
 		m.downloaded[int(msg)] = true
 
-		if m.downloadCount == len(m.songs) {
+		if m.downloadCount+m.failedCount+m.skipCount == len(m.songs) {
 			skipped := make([]string, 0, len(m.links))
 			for i := range m.links {
 				if !m.downloaded[i] {
@@ -319,11 +321,10 @@ func updateEditor(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 		return m, nil
 	case errorMsg:
-		m.skipCount += 1
-		m.downloadCount += 1
-		m.downloadPercent = float64(m.downloadCount) / float64(len(m.songs))
+		m.failedCount += 1
+		m.downloadPercent = float64(m.downloadCount+m.failedCount+m.skipCount) / float64(len(m.songs))
 
-		if m.downloadCount == len(m.songs) {
+		if m.downloadCount+m.failedCount+m.skipCount == len(m.songs) {
 			skipped := make([]string, 0, len(m.links))
 			for i := range m.links {
 				if !m.downloaded[i] {
@@ -375,63 +376,65 @@ func updateFinish(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 // The main view, which just calls the appropriate sub-view
 func (m model) View() string {
-	var s string
+	var b strings.Builder
+	b.WriteString("\n")
+
 	if m.quitting {
-		return "\n  See you later!\n\n"
+		b.WriteString("  See you later!")
+		return indent.String("\n"+b.String()+"\n\n", 2)
 	}
 
 	switch m.view {
 	case int(fetch):
-		s = fetchView(m)
+		b.WriteString(fetchView(m))
 	case int(edit):
-		s = editorView(m)
+		b.WriteString(editorView(m))
 	case int(finish):
-		s = finishView(m)
+		b.WriteString(finishView(m))
 	}
 
-	return indent.String("\n"+s+"\n\n", 2)
+	return indent.String("\n"+b.String()+"\n\n", 2)
 }
 
 func fetchView(m model) string {
-	pad := strings.Repeat(" ", padding)
-	return "\n" +
-		pad + "Fetching video metadata." + "\n" +
-		pad + m.fetchBar.ViewAs(m.fetchPercent) + "\n\n" +
-		pad + helpStyle("Press q button to quit.")
+	var b strings.Builder
+	b.WriteString("\n")
+	b.WriteString(barTextStyle("Fetching video metadata.") + "\n")
+	b.WriteString(m.fetchBar.ViewAs(m.fetchPercent) + "\n\n")
+	b.WriteString(helpStyle("Press ") + keyStyle("q") + helpStyle(" button to quit."))
+
+	return b.String()
 }
 
 func editorView(m model) string {
 	var b strings.Builder
 
 	if m.editIndx < len(m.songs) {
-		// Render title and author of a video.
-		b.WriteString(m.songs[m.editIndx].Video.Title + "\n")
-		b.WriteString(m.songs[m.editIndx].Video.Author + "\n\n")
+		// Original title and author of a video.
+		b.WriteString(helpStyle("Title : "))
+		b.WriteString(songStyle.Render((m.songs[m.editIndx].Video.Title)) + "\n")
+		b.WriteString(helpStyle("Author: "))
+		b.WriteString(songStyle.Render(m.songs[m.editIndx].Video.Author) + "\n\n")
 
-		// Render reliability of title parsing.
-		switch m.songs[m.editIndx].Reliable {
-		case yt2mp3.Yes:
-			b.WriteString(yesStyle("[ ✓ ]"))
-		case yt2mp3.Maybe:
-			b.WriteString(maybeStyle("[ ? ]"))
-		case yt2mp3.No:
-			b.WriteString(noStyle("[ ! ]"))
-		}
-		b.WriteString("\n")
-
-		// Render text inputs.
 		for i := range m.inputs {
 			b.WriteString(m.inputs[i].View() + "\n")
 		}
+
+		b.WriteString("\n")
 	}
 
+	// Statistics tab with current progress.
+	failed := failedStyle.Render(fmt.Sprintf("%2d", m.failedCount))
+	skipped := skippedStyle.Render(fmt.Sprintf("%2d", m.skipCount))
+	downloaded := downloadedStyle.Render(fmt.Sprintf("%2d", m.downloadCount))
+	b.WriteString(fmt.Sprintf("%s failed • %s skipped • %s downloaded\n", failed, skipped, downloaded))
+
 	// Render progress bars.
-	pad := strings.Repeat(" ", padding)
 	b.WriteString("\n")
-	b.WriteString(pad + "Downloading songs." + "\n")
-	b.WriteString(pad + m.fetchBar.ViewAs(m.downloadPercent) + "\n\n")
-	b.WriteString(pad + "Editing metadata." + "\n")
-	b.WriteString(pad + m.fetchBar.ViewAs(m.editPercent) + "\n\n")
+	b.WriteString(barTextStyle("Downloading songs.") + "\n")
+	b.WriteString(m.fetchBar.ViewAs(m.downloadPercent) + "\n\n")
+	b.WriteString(barTextStyle("Editing metadata.") + "\n")
+	b.WriteString(m.fetchBar.ViewAs(m.editPercent) + "\n\n")
 
 	// Render help.
 	b.WriteString(helpStyle("ctrl+r reset • ctrl+s skip • enter confirm • ↑/↓ move • q quit"))
@@ -441,10 +444,15 @@ func editorView(m model) string {
 }
 
 func finishView(m model) string {
-	pad := strings.Repeat(" ", padding)
 	var b strings.Builder
-	b.WriteString(pad + focusedStyle.Render("FINISH VIEW!\n"))
-	b.WriteString(pad + m.timer.View() + "\n")
+
+	// Statistics tab with current progress.
+	failed := failedStyle.Render(fmt.Sprintf("%2d", m.failedCount))
+	skipped := skippedStyle.Render(fmt.Sprintf("%2d", m.skipCount))
+	downloaded := downloadedStyle.Render(fmt.Sprintf("%2d", m.downloadCount))
+	b.WriteString(fmt.Sprintf("%s failed • %s skipped • %s downloaded\n", failed, skipped, downloaded))
+
+	b.WriteString(helpStyle(fmt.Sprintf("Exiting in %s\n", m.timer.View())))
 	b.WriteString(fmt.Sprint(m.err))
 
 	return b.String()
@@ -490,7 +498,7 @@ func retry(attempts int, sleep time.Duration, f func() error) error {
 
 func saveCmd(skipped []string) tea.Cmd {
 	return func() tea.Msg {
-		path := output + "skip.txt"
+		path := output + "failed.txt"
 		b := []byte(strings.Join(skipped, "\n"))
 		err := ioutil.WriteFile(path, b, 0644)
 		if err != nil {
@@ -498,5 +506,16 @@ func saveCmd(skipped []string) tea.Cmd {
 		}
 
 		return saveMsg(len(skipped))
+	}
+}
+
+func reliabilityColor(r yt2mp3.Reliable) lipgloss.Color {
+	switch r {
+	case yt2mp3.Maybe:
+		return lipgloss.Color("3")
+	case yt2mp3.No:
+		return lipgloss.Color("9")
+	default:
+		return lipgloss.Color("2")
 	}
 }
