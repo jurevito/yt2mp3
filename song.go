@@ -32,21 +32,21 @@ type Song struct {
 	Reliable Reliable
 }
 
-func SaveSong(song *Song, path string) error {
-	reader, _, err := client.GetStream(song.Video, FindFormat(song.Video.Formats))
+func (s *Song) Save(path string) error {
+	reader, _, err := client.GetStream(s.Video, FindFormat(s.Video.Formats))
 	if err != nil {
-		return fmt.Errorf("Could not get video stream from song \"%s - %s\"", song.Artist, song.Title)
+		return fmt.Errorf("Could not get video stream from song \"%s - %s\"", s.Artist, s.Title)
 	}
 
-	song.Content, err = io.ReadAll(reader)
+	s.Content, err = io.ReadAll(reader)
 	if err != nil {
-		return fmt.Errorf("Could not read video stream from song \"%s - %s\"", song.Artist, song.Title)
+		return fmt.Errorf("Could not read video stream from song \"%s - %s\"", s.Artist, s.Title)
 	}
 
 	reader.Close()
-	fname := fmt.Sprintf("%s%s - %s", path, song.Artist, song.Title)
+	fname := fmt.Sprintf("%s%s - %s", path, s.Artist, s.Title)
 
-	err = ioutil.WriteFile(fmt.Sprintf("%s.mp4", fname), song.Content, fs.ModePerm)
+	err = ioutil.WriteFile(fmt.Sprintf("%s.mp4", fname), s.Content, fs.ModePerm)
 	if err != nil {
 		return fmt.Errorf("Could not save mp4 file.")
 	}
@@ -74,11 +74,21 @@ func SaveSong(song *Song, path string) error {
 	}
 	defer tag.Close()
 
-	tag.SetArtist(song.Artist)
-	tag.SetTitle(song.Title)
+	tag.SetArtist(s.Artist)
+	tag.SetTitle(s.Title)
 
 	if err = tag.Save(); err != nil {
 		return fmt.Errorf("Could not save edited metadata.")
+	}
+
+	return nil
+}
+
+func FindFormat(formats youtube.FormatList) *youtube.Format {
+	for _, format := range formats {
+		if format.MimeType == "audio/mp4; codecs=\"mp4a.40.2\"" {
+			return &format
+		}
 	}
 
 	return nil
@@ -100,7 +110,19 @@ func RemoveSpecialChars(s string) string {
 	return string(sb[:n])
 }
 
-func ParseTitle(title string, author string) *Song {
+func GetSong(client *youtube.Client, link string) (*Song, error) {
+	video, err := client.GetVideo(link)
+	if err != nil {
+		panic(err)
+	}
+
+	song := ParseMetadata(video.Title, video.Author)
+	song.Video = video
+
+	return song, nil
+}
+
+func ParseMetadata(title string, author string) *Song {
 
 	song := Song{
 		Title:  title,
@@ -151,26 +173,4 @@ func ParseTitle(title string, author string) *Song {
 	song.Title = regex.ReplaceAllLiteralString(song.Title, " ")
 
 	return &song
-}
-
-func FindFormat(formats youtube.FormatList) *youtube.Format {
-	for _, format := range formats {
-		if format.MimeType == "audio/mp4; codecs=\"mp4a.40.2\"" {
-			return &format
-		}
-	}
-
-	return nil
-}
-
-func ParseSong(client *youtube.Client, link string) (*Song, error) {
-	video, err := client.GetVideo(link)
-	if err != nil {
-		panic(err)
-	}
-
-	song := ParseTitle(video.Title, video.Author)
-	song.Video = video
-
-	return song, nil
 }

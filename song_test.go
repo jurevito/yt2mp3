@@ -127,7 +127,7 @@ func TestParseTitle(t *testing.T) {
 	}
 
 	for _, song := range testVideos {
-		video := ParseTitle(song.videoTitle, song.videoAuthor)
+		video := ParseMetadata(song.videoTitle, song.videoAuthor)
 		require.Equal(t, song.title, video.Title)
 		require.Equal(t, song.artist, video.Artist)
 		require.Equal(t, song.reliable, video.Reliable)

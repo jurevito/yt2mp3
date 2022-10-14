@@ -459,7 +459,7 @@ func finishView(m model) string {
 
 func fetchCmd(link string) tea.Cmd {
 	return func() tea.Msg {
-		song, err := ParseSong(&client, link)
+		song, err := GetSong(&client, link)
 		if err != nil {
 			return errorMsg(err)
 		}
@@ -474,7 +474,7 @@ func downloadCmd(song *Song, index int) tea.Cmd {
 		max, min := 5, 1
 		delay := rand.Intn(max-min) + min
 		err := retry(5, time.Duration(delay)*time.Second, func() error {
-			return SaveSong(song, output)
+			return song.Save(output)
 		})
 
 		if err != nil {
