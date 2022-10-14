@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"yt2mp3/yt2mp3"
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -66,7 +65,7 @@ func main() {
 	m := model{
 		downloaded:  make([]bool, len(links)),
 		links:       links,
-		songs:       make([]yt2mp3.Song, 0, len(links)),
+		songs:       make([]Song, 0, len(links)),
 		fetchBar:    fetchBar,
 		downloadBar: downloadBar,
 		editBar:     editBar,
@@ -112,7 +111,7 @@ const (
 	finish
 )
 
-type fetchMsg *yt2mp3.Song
+type fetchMsg *Song
 type errorMsg error
 type downloadMsg int
 type saveMsg int
@@ -122,7 +121,7 @@ type model struct {
 	downloaded []bool
 
 	links []string
-	songs []yt2mp3.Song
+	songs []Song
 
 	fetchBar    progress.Model
 	downloadBar progress.Model
@@ -180,7 +179,7 @@ func updateFetch(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case fetchMsg:
-		m.songs = append(m.songs, *(*yt2mp3.Song)(msg))
+		m.songs = append(m.songs, *(*Song)(msg))
 		m.fetchCount += 1
 		m.fetchPercent = float64(m.fetchCount) / float64(len(m.links))
 
@@ -460,7 +459,7 @@ func finishView(m model) string {
 
 func fetchCmd(link string) tea.Cmd {
 	return func() tea.Msg {
-		song, err := yt2mp3.ParseSong(&client, link)
+		song, err := ParseSong(&client, link)
 		if err != nil {
 			return errorMsg(err)
 		}
@@ -469,7 +468,7 @@ func fetchCmd(link string) tea.Cmd {
 	}
 }
 
-func downloadCmd(song *yt2mp3.Song, index int) tea.Cmd {
+func downloadCmd(song *Song, index int) tea.Cmd {
 	return func() tea.Msg {
 
 		max, min := 5, 1
@@ -509,11 +508,11 @@ func saveCmd(skipped []string) tea.Cmd {
 	}
 }
 
-func reliabilityColor(r yt2mp3.Reliable) lipgloss.Color {
+func reliabilityColor(r Reliable) lipgloss.Color {
 	switch r {
-	case yt2mp3.Maybe:
+	case Maybe:
 		return lipgloss.Color("3")
-	case yt2mp3.No:
+	case No:
 		return lipgloss.Color("9")
 	default:
 		return lipgloss.Color("2")

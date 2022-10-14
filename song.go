@@ -1,9 +1,17 @@
-package yt2mp3
+package main
 
 import (
+	"bytes"
+	"fmt"
+	"io"
+	"io/fs"
+	"io/ioutil"
+	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 
+	id3 "github.com/bogem/id3v2"
 	"github.com/kkdai/youtube/v2"
 	"golang.org/x/exp/slices"
 )
@@ -22,6 +30,58 @@ type Song struct {
 	Video    *youtube.Video
 	Content  []byte
 	Reliable Reliable
+}
+
+func SaveSong(song *Song, path string) error {
+	reader, _, err := client.GetStream(song.Video, FindFormat(song.Video.Formats))
+	if err != nil {
+		return fmt.Errorf("Could not get video stream from song \"%s - %s\"", song.Artist, song.Title)
+	}
+
+	song.Content, err = io.ReadAll(reader)
+	if err != nil {
+		return fmt.Errorf("Could not read video stream from song \"%s - %s\"", song.Artist, song.Title)
+	}
+
+	reader.Close()
+	fname := fmt.Sprintf("%s%s - %s", path, song.Artist, song.Title)
+
+	err = ioutil.WriteFile(fmt.Sprintf("%s.mp4", fname), song.Content, fs.ModePerm)
+	if err != nil {
+		return fmt.Errorf("Could not save mp4 file.")
+	}
+
+	mp4 := fmt.Sprintf("%s.mp4", fname)
+	mp3 := fmt.Sprintf("%s.mp3", fname)
+
+	cmd := exec.Command("ffmpeg", "-y", "-i", mp4, "-vn", mp3)
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("%v: %s", err, stderr.String())
+	}
+
+	if err = os.Remove(mp4); err != nil {
+		return fmt.Errorf("Could not remove mp4 file.")
+	}
+
+	tag, err := id3.Open(mp3, id3.Options{Parse: true})
+	if err != nil {
+		return fmt.Errorf("Could not open mp3 file to edit metadata.")
+	}
+	defer tag.Close()
+
+	tag.SetArtist(song.Artist)
+	tag.SetTitle(song.Title)
+
+	if err = tag.Save(); err != nil {
+		return fmt.Errorf("Could not save edited metadata.")
+	}
+
+	return nil
 }
 
 func RemoveSpecialChars(s string) string {

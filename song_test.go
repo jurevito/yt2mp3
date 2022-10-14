@@ -1,4 +1,4 @@
-package yt2mp3
+package main
 
 import (
 	"testing"
