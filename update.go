@@ -12,6 +12,17 @@ const (
 	maxWidth = 80
 )
 
+func filter[A any](v []A, m []bool) []A {
+	r := make([]A, 0, len(v))
+	for i := range v {
+		if m[i] {
+			r = append(r, v[i])
+		}
+	}
+
+	return r
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if msg, ok := msg.(tea.KeyMsg); ok {
 		k := msg.String()
@@ -42,6 +53,7 @@ func updateFetch(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case fetchMsg:
+		m.fetched[m.fetchCount] = true
 		m.songs = append(m.songs, *(*Song)(msg))
 		m.fetchCount += 1
 		m.fetchPercent = float64(m.fetchCount) / float64(len(m.links))
@@ -49,6 +61,9 @@ func updateFetch(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		if m.fetchCount < len(m.links) {
 			return m, fetchCmd(m.links[m.fetchCount])
 		}
+
+		m.links = filter(m.links, m.fetched)
+		m.songs = filter(m.songs, m.fetched)
 
 		sort.Slice(m.songs, func(i, j int) bool {
 			return m.songs[i].Reliable < m.songs[j].Reliable
@@ -60,9 +75,27 @@ func updateFetch(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 		return m, nil
 	case errorMsg:
-		m.view = int(finish)
-		m.err = error(msg)
-		return m, m.timer.Init()
+		m.failedFetch += 1
+		m.songs = append(m.songs, Song{})
+		m.fetchCount += 1
+		m.fetchPercent = float64(m.fetchCount) / float64(len(m.links))
+
+		if m.fetchCount < len(m.links) {
+			return m, fetchCmd(m.links[m.fetchCount])
+		}
+
+		m.links = filter(m.links, m.fetched)
+		m.songs = filter(m.songs, m.fetched)
+
+		sort.Slice(m.songs, func(i, j int) bool {
+			return m.songs[i].Reliable < m.songs[j].Reliable
+		})
+
+		m.view = int(edit)
+		m.inputs[0].SetValue(m.songs[0].Title)
+		m.inputs[1].SetValue(m.songs[0].Artist)
+
+		return m, nil
 	default:
 		return m, nil
 	}

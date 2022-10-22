@@ -57,10 +57,11 @@ func editorView(m model) string {
 	}
 
 	// Statistics tab with current progress.
+	failedFetch := failedStyle.Render(fmt.Sprintf("%2d", m.failedFetch))
 	failed := failedStyle.Render(fmt.Sprintf("%2d", m.failedCount))
 	skipped := skippedStyle.Render(fmt.Sprintf("%2d", m.skipCount))
 	downloaded := downloadedStyle.Render(fmt.Sprintf("%2d", m.downloadCount))
-	b.WriteString(fmt.Sprintf("%s failed • %s skipped • %s downloaded\n", failed, skipped, downloaded))
+	b.WriteString(fmt.Sprintf("%s failed • %s skipped • %s downloaded • %s failed fetch\n", failed, skipped, downloaded, failedFetch))
 
 	// Render progress bars.
 	b.WriteString("\n")

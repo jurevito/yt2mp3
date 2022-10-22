@@ -58,6 +58,7 @@ func main() {
 	editBar := progress.New(progress.WithScaledGradient("#FF7CCB", "#FDFF8C"))
 
 	m := model{
+		fetched:     make([]bool, len(links)),
 		downloaded:  make([]bool, len(links)),
 		links:       links,
 		songs:       make([]Song, 0, len(links)),
@@ -107,6 +108,9 @@ type downloadMsg int
 type saveMsg int
 
 type model struct {
+	failedFetch int
+	fetched     []bool
+
 	skipCount  int
 	downloaded []bool
 

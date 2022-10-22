@@ -113,7 +113,7 @@ func RemoveSpecialChars(s string) string {
 func GetSong(client *youtube.Client, link string) (*Song, error) {
 	video, err := client.GetVideo(link)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	song := ParseMetadata(video.Title, video.Author)
