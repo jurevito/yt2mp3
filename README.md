@@ -8,5 +8,4 @@ Project is currently dependant on [FFMPEG](https://ffmpeg.org/) for **mp4** to *
 ```bash
 > yt2mp3 -n_links={number} -skip={number} <source> <output_folder> 
 ```
-
-![TUI](https://raw.githubusercontent.com/jurevito/yt2mp3/main/.github/images/yt2mp3.gif)
+![yt2mp3](https://user-images.githubusercontent.com/36798549/209480711-a7930ec4-2984-45b2-b158-6dc448d7dee1.gif)
