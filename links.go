@@ -23,7 +23,7 @@ func getLinks(client *youtube.Client, source string, nLinks int, skip int) (link
 	}
 
 	if nLinks != 0 {
-		links = links[skip:nLinks]
+		links = links[skip : nLinks+skip]
 	}
 
 	return
