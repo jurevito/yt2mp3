@@ -14,7 +14,7 @@ import (
 	"github.com/kkdai/youtube/v2"
 )
 
-var client youtube.Client = youtube.Client{Debug: false}
+var client youtube.Client = youtube.Client{}
 var nLinks *int
 var skip *int
 var source string
