@@ -10,8 +10,7 @@ import (
 )
 
 func getLinks(client *youtube.Client, source string, nLinks int, skip int) (links []string, err error) {
-	isPlaylist := strings.Contains(source, "https://www.youtube.com/playlist")
-
+	isPlaylist := strings.Contains(source, "youtube.com")
 	if isPlaylist {
 		links, err = fetchPlaylistLinks(client, source)
 	} else {
